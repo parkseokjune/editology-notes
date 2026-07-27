@@ -77,6 +77,8 @@
   .btn.primary:hover{opacity:.9;color:#fff}
   .btn.tiny{padding:4px 8px;font-size:11.5px}
   .btn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.danger{color:var(--accent);border-color:var(--accent)}
+  .btn.danger:hover{background:var(--accent);color:#fff}
 
   .search{padding:10px 12px 6px;display:flex;gap:6px;align-items:center}
   .search input{flex:1;padding:8px 11px;border:1px solid var(--border);border-radius:8px;background:var(--panel);font-size:13px;outline:none;min-width:0}
@@ -323,9 +325,11 @@
 </div>
 
 <div class="tray" id="tray">
-  <div class="cnt">개념 재료 <b id="trayCount">0</b>개 선택됨</div>
+  <div class="cnt"><b id="trayCount">0</b>장 선택됨</div>
   <div class="tray-items" id="trayItems"></div>
-  <button class="btn tiny" onclick="clearTray()">비우기</button>
+  <button class="btn tiny" onclick="selectAllVisible()">전체 선택</button>
+  <button class="btn tiny" onclick="clearTray()">선택 해제</button>
+  <button class="btn tiny danger" onclick="deleteSelected()">🗑 삭제</button>
   <button class="btn primary tiny" onclick="buildConcept()">✎ 개념으로 편집</button>
 </div>
 
@@ -619,7 +623,7 @@ function render(){
       '<div class="ex">'+esc(excerpt(c,110))+'</div>'+
       '<div class="meta">'+tagsHtml+hasImg+'<span>'+fmtDate(c.updated)+'</span></div>'+
       '<button class="pinbtn'+(c.pinned?' on':'')+'" onclick="togglePin(\''+c.id+'\')" title="고정">📌</button>'+
-      '<input type="checkbox" class="selbox'+(tray.has(c.id)?' on':'')+'" '+(tray.has(c.id)?'checked':'')+' onclick="toggleTray(\''+c.id+'\')" title="개념 재료로 담기">';
+      '<input type="checkbox" class="selbox'+(tray.has(c.id)?' on':'')+'" '+(tray.has(c.id)?'checked':'')+' onclick="toggleTray(\''+c.id+'\')" title="선택 (여러 장 골라 삭제하거나 개념으로 편집)">';
     wrap.appendChild(div);
   }
   renderRight(); renderTray();
@@ -713,7 +717,7 @@ function openCard(id){
       '<button class="btn tiny'+(c.pinned?' on':'')+'" onclick="togglePin(\''+c.id+'\',true)">'+(c.pinned?'📌 고정됨':'📌 고정')+'</button>'+
       '<button class="btn tiny" id="previewBtn" onclick="togglePreview()">미리보기</button>'+
       '<button class="btn tiny" onclick="pickImage()">🖼 이미지</button>'+
-      '<button class="btn tiny" onclick="toggleTray(\''+c.id+'\',true)">＋ 개념 재료</button>'+
+      '<button class="btn tiny" onclick="toggleTray(\''+c.id+'\',true)">＋ 선택</button>'+
       '<button class="btn tiny" onclick="deleteCard(\''+c.id+'\')">삭제</button>'+
     '</div>'+
     '<div class="editor-head">'+
@@ -968,6 +972,24 @@ function rollSerendipity(){
 /* ---------- Concept tray ---------- */
 function toggleTray(id, force){ if(force) tray.add(id); else if(tray.has(id)) tray.delete(id); else tray.add(id); render(); }
 function clearTray(){ tray.clear(); render(); }
+function selectAllVisible(){ for(const c of filteredCards()) tray.add(c.id); render(); }
+function deleteSelected(){
+  const ids=[...tray].filter(id=>{ const c=db.cards.find(x=>x.id===id); return c && !c.deleted; });
+  if(!ids.length) return;
+  const names=ids.map(id=>{ const c=db.cards.find(x=>x.id===id); return c.title||"제목 없음"; });
+  const preview=names.slice(0,4).join(", ")+(names.length>4?" 외 "+(names.length-4)+"장":"");
+  showModal("선택한 카드 삭제", ids.length+"장을 휴지통으로 옮깁니다 — "+preview+". 휴지통에서 되살릴 수 있어요.", ()=>{
+    const now=Date.now();
+    for(const id of ids){ const c=db.cards.find(x=>x.id===id); if(c) c.deleted=now; }
+    tray.clear(); _vecCache.clear();
+    if(ids.includes(currentId)){ currentId=null; renderWelcome(); }
+    closeModal(); save(); render();
+    toast(ids.length+"장을 휴지통으로 옮겼습니다","되돌리기",()=>{
+      for(const id of ids){ const c=db.cards.find(x=>x.id===id); if(c) delete c.deleted; }
+      _vecCache.clear(); save(); render(); toast("되돌렸습니다");
+    });
+  });
+}
 function renderTray(){
   document.getElementById("trayCount").textContent=tray.size;
   const items=document.getElementById("trayItems"); items.innerHTML="";
