@@ -1,16 +1,26 @@
 {
-  "name": "에디톨로지 · 생각을 편집하는 메모장",
-  "short_name": "에디톨로지",
-  "description": "생각의 조각을 모으고 잇고 편집해 자기만의 개념을 만드는 메모장",
+  "name": "아이블포노닉스 연구노트",
+  "short_name": "AP 연구노트",
+  "description": "아이블포노닉스 연구 기록을 모으고 잇고 검색하는 워크스페이스",
   "lang": "ko",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#f7f6f3",
-  "theme_color": "#c2410c",
+  "background_color": "#f2f4f7",
+  "theme_color": "#155e94",
   "start_url": "./",
   "scope": "./",
   "icons": [
-    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }

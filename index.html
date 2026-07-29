@@ -3,43 +3,43 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#c2410c">
+<meta name="theme-color" content="#155e94">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="에디톨로지">
+<meta name="apple-mobile-web-app-title" content="AP 연구노트">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-512.png">
 <link rel="apple-touch-icon" href="icon-512.png">
-<title>에디톨로지 · 생각을 편집하는 메모장</title>
+<title>아이블포노닉스 연구노트</title>
 <style>
   :root{
     /* 색인 카드(종이) + 편집자의 빨간펜(교정 잉크) */
-    --bg:#f3f0e8; --panel:#fffdf8; --panel-2:#eeeae0; --border:#e2ddd0;
-    --text:#2b2823; --muted:#8b857a; --accent:#bd3b2a; --accent-soft:#f7e5df;
+    --bg:#f2f4f7; --panel:#ffffff; --panel-2:#e9edf2; --border:#d7dee6;
+    --text:#1d2732; --muted:#64748b; --accent:#155e94; --accent-soft:#e1edf6;
     --link:#2c6a97; --tag-bg:#e8e3d7; --tag-text:#6a6357; --shadow:0 1px 2px rgba(60,48,28,.06),0 6px 16px rgba(60,48,28,.05);
     --hl:#fdeeb0; --sim:#b6afa1;
     --font:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard","Malgun Gothic",sans-serif;
-    --serif:"Iowan Old Style","Palatino Linotype","Nanum Myeongjo","AppleMyungjo",Georgia,"Times New Roman",serif;
+    --serif:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard","Malgun Gothic",sans-serif;
     --r:10px;
   }
   @media (prefers-color-scheme: dark){
     :root{
-      --bg:#1a1815; --panel:#242018; --panel-2:#1f1c16; --border:#39342b;
-      --text:#eae5db; --muted:#9a9488; --accent:#f0704f; --accent-soft:#3a2016;
+      --bg:#0f151c; --panel:#171f28; --panel-2:#121922; --border:#293544;
+      --text:#dde5ee; --muted:#8195a8; --accent:#4f9bd6; --accent-soft:#0f2b42;
       --link:#71b2e8; --tag-bg:#302c23; --tag-text:#b9b1a2; --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 16px rgba(0,0,0,.28);
       --hl:#4c401f; --sim:#5c564c;
     }
   }
   /* manual theme toggle overrides (win in both directions) */
   :root[data-theme="light"]{
-    --bg:#f3f0e8; --panel:#fffdf8; --panel-2:#eeeae0; --border:#e2ddd0;
-    --text:#2b2823; --muted:#8b857a; --accent:#bd3b2a; --accent-soft:#f7e5df;
+    --bg:#f2f4f7; --panel:#ffffff; --panel-2:#e9edf2; --border:#d7dee6;
+    --text:#1d2732; --muted:#64748b; --accent:#155e94; --accent-soft:#e1edf6;
     --link:#2c6a97; --tag-bg:#e8e3d7; --tag-text:#6a6357; --shadow:0 1px 2px rgba(60,48,28,.06),0 6px 16px rgba(60,48,28,.05);
     --hl:#fdeeb0; --sim:#b6afa1;
   }
   :root[data-theme="dark"]{
-    --bg:#1a1815; --panel:#242018; --panel-2:#1f1c16; --border:#39342b;
-    --text:#eae5db; --muted:#9a9488; --accent:#f0704f; --accent-soft:#3a2016;
+    --bg:#0f151c; --panel:#171f28; --panel-2:#121922; --border:#293544;
+    --text:#dde5ee; --muted:#8195a8; --accent:#4f9bd6; --accent-soft:#0f2b42;
     --link:#71b2e8; --tag-bg:#302c23; --tag-text:#b9b1a2; --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 16px rgba(0,0,0,.28);
     --hl:#4c401f; --sim:#5c564c;
   }
@@ -275,6 +275,24 @@
   .ai-busy{color:var(--muted);font-size:13px;animation:aiPulse 1.2s infinite}
   @keyframes aiPulse{0%,100%{opacity:.4}50%{opacity:1}}
   @media (max-width:860px){ .ai-body{grid-template-columns:1fr} .ai-cfg input{width:150px} }
+
+  /* ---------- 타임라인 ---------- */
+  #tlView{position:fixed;inset:0;z-index:55;display:none;flex-direction:column;background:var(--bg)}
+  #tlView.show{display:flex}
+  .tl-head{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;
+    border-bottom:1px solid var(--border);background:var(--panel)}
+  .tl-head h2{font-size:17px;margin:0}
+  .tl-body{flex:1;overflow:auto;padding:20px;max-width:860px;margin:0 auto;width:100%}
+  .tl-month{font-size:13px;font-weight:700;color:var(--accent);margin:22px 0 8px;letter-spacing:.3px;
+    border-bottom:1px solid var(--border);padding-bottom:5px}
+  .tl-month:first-child{margin-top:0}
+  .tl-row{display:flex;gap:12px;padding:7px 8px;border-radius:8px;cursor:pointer;align-items:baseline}
+  .tl-row:hover{background:var(--panel)}
+  .tl-date{flex:0 0 84px;color:var(--muted);font-size:12.5px;font-variant-numeric:tabular-nums}
+  .tl-title{flex:1;font-size:14px}
+  .tl-tags{flex:0 0 auto;display:flex;gap:4px}
+  .tl-tags span{font-size:11px;color:var(--muted);background:var(--panel-2);border-radius:999px;padding:1px 8px}
+  .tl-flag{color:var(--accent);font-size:11.5px;margin-left:6px}
 </style>
 </head>
 <body>
@@ -284,16 +302,17 @@
   <div class="pane left">
     <div class="brand">
       <div class="txt">
-        <h1><span class="dot"></span> 에디톨로지</h1>
-        <p>생각의 조각을 모으고 · 잇고 · 편집한다</p>
+        <h1><span class="dot"></span> 아이블포노닉스 연구노트</h1>
+        <p>연구 기록을 모으고 · 잇고 · 검색한다</p>
       </div>
-      <button class="icon-btn" id="themeBtn" onclick="toggleTheme()" title="라이트/다크 전환">🌗</button>
+      <button class="icon-btn" id="themeBtn" onclick="toggleTheme()" title="라이트/다크 전환">◐</button>
     </div>
     <div class="toolbar">
       <button class="btn primary" onclick="newCard()">＋ 새 카드</button>
-      <button class="btn tiny" id="graphBtn" onclick="toggleGraph()">🕸 지도</button>
-      <button class="btn tiny" id="aiBtn" onclick="toggleAI()">🤖 AI</button>
-      <button class="btn tiny" id="trashBtn" onclick="toggleTrash()">🗑 휴지통</button>
+      <button class="btn tiny" id="graphBtn" onclick="toggleGraph()">연결 지도</button>
+      <button class="btn tiny" id="aiBtn" onclick="toggleAI()">AI 분석</button>
+      <button class="btn tiny" id="trashBtn" onclick="toggleTrash()">휴지통</button>
+      <button class="btn tiny" id="tlBtn" onclick="toggleTimeline()">타임라인</button>
       <button class="btn tiny" onclick="exportDB()">내보내기</button>
       <button class="btn tiny" onclick="document.getElementById('importFile').click()">가져오기</button>
       <button class="btn tiny" id="fileConnectBtn" style="display:none" onclick="connectFile()">파일 연결</button>
@@ -301,10 +320,10 @@
       <input type="file" id="importFile" accept="application/json" style="display:none" onchange="importDB(event)">
     </div>
     <div class="qcap">
-      <input id="qcapInput" placeholder="⚡ 빠르게 메모…  (엔터로 담기)" onkeydown="if(event.key==='Enter'){event.preventDefault();quickCapture();}">
+      <input id="qcapInput" placeholder="빠른 메모…  (엔터로 담기)" onkeydown="if(event.key==='Enter'){event.preventDefault();quickCapture();}">
     </div>
     <div class="search">
-      <input id="searchInput" placeholder="🔍  검색  (제목 · 내용 · 태그)" oninput="render()">
+      <input id="searchInput" placeholder="검색  (제목 · 내용 · 태그)" oninput="render()">
       <select class="sortsel" id="sortSel" onchange="sortMode=this.value;render()" title="정렬">
         <option value="updated">수정순</option>
         <option value="created">작성순</option>
@@ -321,7 +340,7 @@
     <div class="editor-wrap" id="editorWrap"></div>
     <div id="graphView">
       <div class="graph-head">
-        <h2>🕸 에디톨로지 지도</h2>
+        <h2>연결 지도</h2>
         <div class="legend"><span><i class="l-link"></i>직접 연결</span><span><i class="l-sim"></i>내용 유사</span><span>◌ 고아</span></div>
         <span style="flex:1"></span>
         <button class="btn tiny" onclick="graphZoom(1.25)">＋</button>
@@ -349,7 +368,7 @@
       <div id="relatedPanel"><div class="rp-empty">태그와 내용이 비슷한 카드를 자동으로 찾아줍니다.</div></div>
     </div>
     <div class="serendipity" id="serendipity" style="display:none">
-      <div class="lead">⚡ 세렌디피티</div>
+      <div class="lead">세렌디피티</div>
       <div class="ser-pair" id="serPair"></div>
       <button class="btn tiny" style="margin-top:10px" onclick="rollSerendipity()">다른 조합 ↻</button>
     </div>
@@ -361,16 +380,27 @@
   <div class="tray-items" id="trayItems"></div>
   <button class="btn tiny" onclick="selectAllVisible()">전체 선택</button>
   <button class="btn tiny" onclick="clearTray()">선택 해제</button>
-  <button class="btn tiny danger" onclick="deleteSelected()">🗑 삭제</button>
+  <button class="btn tiny danger" onclick="deleteSelected()">삭제</button>
   <button class="btn primary tiny" onclick="buildConcept()">✎ 개념으로 편집</button>
 </div>
 
 <div id="acBox"></div>
 
+<!-- 타임라인 -->
+<div id="tlView" role="dialog" aria-label="타임라인">
+  <div class="tl-head">
+    <h2>타임라인</h2>
+    <div style="display:flex;gap:8px">
+      <button class="btn tiny" onclick="toggleTimeline()">✕ 닫기</button>
+    </div>
+  </div>
+  <div class="tl-body" id="tlBody"></div>
+</div>
+
 <!-- AI 패널 -->
 <div id="aiView" role="dialog" aria-label="AI">
   <div class="ai-head">
-    <h2>🤖 AI — 노트에게 묻고, 발상을 얻는다</h2>
+    <h2>AI — 기록에 묻고, 발상을 얻는다</h2>
     <div class="ai-cfg">
       <input id="aiKeyInput" type="password" placeholder="OpenRouter API 키 (이 브라우저에만 저장)" autocomplete="off">
       <select id="aiModelSel">
@@ -383,7 +413,7 @@
   </div>
   <div class="ai-body">
     <section class="ai-col">
-      <h3>📖 노트에게 묻기</h3>
+      <h3>기록에 묻기</h3>
       <p class="ai-hint">질문과 관련된 카드를 찾아 그 근거로만 답합니다. 관련 카드 내용만 API로 전송됩니다 (Anthropic 직접 라우팅 · 데이터수집 차단).</p>
       <div class="ai-askrow">
         <input id="aiQ" placeholder="예: 몰딩 후 직경 측정값이 얼마였지?" onkeydown="if(event.key==='Enter')aiAsk()">
@@ -393,7 +423,7 @@
       <div id="aiA" class="ai-answer"></div>
     </section>
     <section class="ai-col">
-      <h3>💡 새로운 발상</h3>
+      <h3>새로운 발상</h3>
       <p class="ai-hint">노트 조각들을 가로질러 편집해, 아직 아무도 잇지 않은 조합을 제안합니다. 마음에 들면 카드로 저장하세요.</p>
       <div class="ai-askrow">
         <input id="aiTheme" placeholder="(선택) 주제 힌트 — 예: 저주파 대역 개선" onkeydown="if(event.key==='Enter')aiIdeas()">
@@ -432,6 +462,8 @@ let previewMode = false;
 let sortMode = "updated";
 let trashView = false;
 let orphanFilter = false;
+let checkFilter = false;
+function needsCheck(c){ const b=c.body||""; return b.includes("서명 ✗")||b.includes("판독 low"); }
 const tray = new Set();
 
 function load(){
@@ -450,15 +482,15 @@ function seed(){
   const now = Date.now();
   const mk = (t,b,tags,off)=>({id:"seed"+off, title:t, body:b, tags, attachments:{}, pinned:false, created:now-off*86400000, updated:now-off*86400000});
   return { version:3, seq:0, cards:[
-    mk("에디톨로지란 무엇인가",
-      "창조는 편집이다. 하늘 아래 완전히 새로운 것은 없다.\n이미 존재하는 정보의 조각들을 **자기만의 방식으로 편집**할 때 비로소 새로운 개념이 태어난다.\n\n핵심은 세 단계:\n1. 모은다 (수집)\n2. 잇는다 (연결)\n3. 편집한다 (재구성)\n\n관련: [[메모는 왜 쌓아야 하는가]], [[낯선 조합에서 오는 통찰]]",
-      ["에디톨로지","개념"], 2),
-    mk("메모는 왜 쌓아야 하는가",
-      "떠오른 생각은 붙잡지 않으면 사라진다.\n메모는 단순 저장이 아니라 **미래의 나에게 보내는 재료**다.\n\n지금은 쓸모없어 보여도, 나중에 다른 조각과 만나 [[낯선 조합에서 오는 통찰]]로 이어진다.\n중요한 건 양이 아니라 **연결 가능성**. #에버노트 처럼 조작 가능한 도구가 좋은 이유다.",
-      ["메모","방법론"], 5),
-    mk("낯선 조합에서 오는 통찰",
-      "가장 창의적인 순간은 *전혀 관계없어 보이던 두 메모*가 갑자기 연결될 때 찾아온다.\n\n> 서로 멀리 떨어진 개념을 잇는 다리가 곧 아이디어다.\n\n오른쪽 '세렌디피티' 버튼을 눌러 보라. 무작위에 가까운 두 카드를 던져 준다.\n그 사이의 다리를 스스로 놓아 보는 것 — 그게 [[에디톨로지란 무엇인가]]의 실전이다.",
-      ["에디톨로지","창의성"], 1),
+    mk("연구노트 작성 원칙",
+      "국가 R&D 법정 연구노트의 정본은 **제본된 수기 노트**다. 이 앱은 검색·연결·관리용 사본이다.\n\n지켜야 할 것:\n1. 기록마다 날짜와 기록자 서명\n2. 점검자(확인자) 서명\n3. 연속된 페이지 번호\n\n서명·날짜가 빠진 기록은 좌측 **점검 필요** 필터에 모인다. 관련: [[이 워크스페이스 사용법]]",
+      ["안내","연구노트"], 2),
+    mk("이 워크스페이스 사용법",
+      "- 본문에 **[[** 를 치면 다른 기록과 연결된다\n- **연결 지도**: 기록 간 연결망을 그래프로 본다\n- **타임라인**: 기록을 월별 시간축으로 본다\n- **AI 분석**: 축적된 기록에 질문하거나(RAG) 새로운 발상을 얻는다\n- 태그 입력칸 아래 **추천 태그**를 누르면 자동 분류된다\n\n관련: [[연구노트 작성 원칙]], [[AI 기능 안내]]",
+      ["안내"], 5),
+    mk("AI 기능 안내",
+      "**AI 분석** 버튼에서:\n\n- *기록에 묻기* — 질문과 관련된 기록을 찾아 그 근거로만 답한다. 예: \"몰딩 후 직경 측정값은?\"\n- *새로운 발상* — 서로 다른 기록을 가로질러 아직 시도되지 않은 연구 아이디어를 제안한다\n\nOpenRouter API 키가 필요하며, 키와 기록은 이 브라우저에만 저장된다.\n관련: [[이 워크스페이스 사용법]]",
+      ["안내","AI"], 1),
   ], };
 }
 
@@ -479,7 +511,7 @@ function toggleTheme(){
   localStorage.setItem(THEME_KEY, next);
   updateThemeBtn();
 }
-function updateThemeBtn(){ const b=document.getElementById("themeBtn"); if(b) b.textContent=currentTheme()==="dark"?"☀️":"🌙"; }
+function updateThemeBtn(){ const b=document.getElementById("themeBtn"); if(b) b.textContent="◐"; }
 
 /* ---------- Text engine ---------- */
 const STOP = new Set(["은","는","이","가","을","를","의","에","도","와","과","로","으로","및","등","수","것","그","저","때","더","이런","저런","하는","한","할","있는","없는","그리고","하지만","또한","그런","같은","위해","대한","통해","에서","에게","보다","까지","부터","만큼","처럼","것은","것이","되는"]);
@@ -651,6 +683,7 @@ function filteredCards(){
   const q=document.getElementById("searchInput").value.trim().toLowerCase();
   let list=liveCards();
   if(orphanFilter) list=list.filter(isOrphan);
+  if(checkFilter) list=list.filter(needsCheck);
   if(activeTag) list=list.filter(c=>(c.tags||[]).includes(activeTag));
   if(q) list=list.filter(c=>c.title.toLowerCase().includes(q)||(c.body||"").toLowerCase().includes(q)||(c.tags||[]).some(t=>t.toLowerCase().includes(q)));
   const cmp={
@@ -668,6 +701,12 @@ function render(){
   if(orphanFilter){
     const o=document.createElement("span"); o.className="chip active"; o.innerHTML="◌ 고아 카드만 ✕";
     o.onclick=()=>{orphanFilter=false;render();}; tf.appendChild(o);
+  }
+  const _nc=liveCards().filter(needsCheck).length;
+  if(_nc||checkFilter){
+    const k=document.createElement("span"); k.className="chip"+(checkFilter?" active":"");
+    k.innerHTML=(checkFilter?"점검 필요만 ✕":"점검 필요")+'<span class="n">'+_nc+'</span>';
+    k.title="서명 누락 또는 판독 저조 기록"; k.onclick=()=>{checkFilter=!checkFilter;render();}; tf.appendChild(k);
   }
   if(tags.length){
     const all=document.createElement("span"); all.className="chip"+(activeTag?"":" active"); all.textContent="전체";
@@ -724,16 +763,16 @@ function renderWelcome(){
     : '';
   document.getElementById("editorWrap").innerHTML=
     '<div class="welcome">'+
-      '<h2>생각을 편집하는 메모장</h2>'+
-      '<p class="sub">창의성은 무에서 오지 않습니다. 흩어진 조각들을 <b>새롭게 연결</b>하는 데서 옵니다.</p>'+
+      '<h2>아이블포노닉스 연구노트</h2>'+
+      '<p class="sub">연구 기록을 한곳에 모으고, 잇고, 검색합니다. 발견은 <b>연결된 기록</b>에서 나옵니다.</p>'+
       '<div class="stats">'+
         '<div class="stat"><div class="num">'+s.cards+'</div><div class="lab">카드</div></div>'+
         '<div class="stat"><div class="num">'+s.links+'</div><div class="lab">연결</div></div>'+
         '<div class="stat click orphan" onclick="showOrphans()"><div class="num">'+s.orphans+'</div><div class="lab">고아 카드 →</div></div>'+
       '</div>'+
       nudge+
-      '<div class="q">"창조는 편집이다. 세상 모든 것은 이미 존재하는 것들의 편집이다. 자기만의 방식으로 편집할 수 있어야 자기만의 개념이 생긴다."<br>— 김정운, 『에디톨로지』</div>'+
-      '<p class="sub"><b>＋새 카드</b>로 생각을 붙잡고, 본문에 <code>[[</code> 를 치면 카드가 자동완성됩니다. <b>🕸지도</b>로 연결망을 보고, <b>고아 카드</b>는 아직 어디에도 안 이어진 조각이니 연결해 보세요.</p>'+
+      '<div class="q">"기록되지 않은 연구는 증명할 수 없고, 연결되지 않은 기록은 발견으로 이어지지 않는다."</div>'+
+      '<p class="sub"><b>＋새 카드</b>로 생각을 붙잡고, 본문에 <code>[[</code> 를 치면 카드가 자동완성됩니다. <b>연결 지도</b>로 연결망을 보고, <b>고아 카드</b>는 아직 어디에도 안 이어진 조각이니 연결해 보세요.</p>'+
     '</div>';
 }
 function showOrphans(){ orphanFilter=true; activeTag=null; trashView=false; document.getElementById("searchInput").value=""; render(); if(window.innerWidth<=720) document.body.classList.add("nav-open"); }
@@ -759,7 +798,7 @@ function renderTrash(){
       '</div>';
     wrap.appendChild(div);
   }
-  const rightEmpty='<div class="rp-empty">휴지통을 보는 중입니다. 상단 🗑 버튼으로 나갈 수 있어요.</div>';
+  const rightEmpty='<div class="rp-empty">휴지통을 보는 중입니다. 상단 휴지통 버튼으로 나갈 수 있어요.</div>';
   document.getElementById("linksPanel").innerHTML=rightEmpty;
   document.getElementById("relatedPanel").innerHTML="";
   document.getElementById("serendipity").style.display="none";
@@ -791,7 +830,7 @@ function openCard(id){
     '</div>'+
     '<div class="editor-head">'+
       '<input class="title-in" id="titleIn" placeholder="제목 없는 생각…" value="'+escAttr(c.title||"")+'">'+
-      '<input class="tags-in" id="tagsIn" placeholder="태그를 쉼표로 (예: 에디톨로지, 메모, 창의성)" value="'+escAttr((c.tags||[]).join(", "))+'">'+
+      '<input class="tags-in" id="tagsIn" placeholder="태그를 쉼표로 (예: 링트랜스듀서, 측정, 몰딩)" value="'+escAttr((c.tags||[]).join(", "))+'">'+
       '<div class="tagsuggest" id="tagSuggest"></div>'+
       '<div class="divider"></div>'+
     '</div>'+
@@ -825,8 +864,10 @@ function refreshSuggest(){
   const box=document.getElementById("tagSuggest"); if(!box) return;
   const c=db.cards.find(x=>x.id===currentId); if(!c){ box.innerHTML=""; return; }
   const sugg=suggestTags(c);
-  box.innerHTML=sugg.length? '<span class="lbl">추천:</span>'+sugg.map(t=>'<span class="chip suggest" onclick="addTag(\''+escAttr(t)+'\')">＋ '+esc(t)+'</span>').join("") : "";
+  box.innerHTML=sugg.length? '<span class="lbl">추천:</span>'+sugg.map(t=>'<span class="chip suggest" onclick="addTag(\''+escAttr(t)+'\')">＋ '+esc(t)+'</span>').join("")+'<span class="chip suggest all" onclick="addAllTags()">모두 추가</span>' : "";
+  window._lastSuggest=sugg;
 }
+function addAllTags(){ for(const t of (window._lastSuggest||[])) addTag(t); }
 function addTag(t){
   const tg=document.getElementById("tagsIn"); if(!tg) return;
   const cur=tg.value.split(",").map(s=>s.trim()).filter(Boolean);
@@ -906,7 +947,7 @@ function deleteCard(id){
   if(currentId===id) renderWelcome();
   currentId=(currentId===id)?null:currentId;
   render();
-  toast("휴지통으로 옮겼습니다 · 🗑에서 복원 가능");
+  toast("휴지통으로 옮겼습니다 · 휴지통에서 복원 가능");
 }
 
 /* ---------- [[ Autocomplete ---------- */
@@ -1303,8 +1344,8 @@ function updateFileBtn(){ const b=document.getElementById("fileConnectBtn"); if(
   // Fallback manifest+icon when opened as a local file:// (no server to serve manifest.webmanifest)
   try{
     if(location.protocol==="file:"){
-      const ICON="data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"><rect width="512" height="512" rx="96" fill="#c2410c"/><g fill="#fff"><circle cx="256" cy="150" r="46"/><circle cx="150" cy="350" r="40"/><circle cx="362" cy="350" r="40"/><g stroke="#fff" stroke-width="16"><line x1="256" y1="150" x2="150" y2="350"/><line x1="256" y1="150" x2="362" y2="350"/><line x1="150" y1="350" x2="362" y2="350"/></g></g></svg>');
-      const manifest={name:"에디톨로지 · 생각을 편집하는 메모장", short_name:"에디톨로지", display:"standalone", background_color:"#f7f6f3", theme_color:"#c2410c", start_url:".", scope:".", icons:[{src:ICON,sizes:"512x512",type:"image/svg+xml",purpose:"any"}]};
+      const ICON="data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"><rect width="512" height="512" rx="110" fill="#155e94"/><text x="256" y="318" font-family="Helvetica,Arial,sans-serif" font-size="230" font-weight="700" fill="#fff" text-anchor="middle">AP</text><rect x="146" y="392" width="220" height="12" fill="#78bee9"/></svg>');
+      const manifest={name:"아이블포노닉스 연구노트", short_name:"AP 연구노트", display:"standalone", background_color:"#f2f4f7", theme_color:"#155e94", start_url:".", scope:".", icons:[{src:ICON,sizes:"512x512",type:"image/svg+xml",purpose:"any"}]};
       const ex=document.querySelector('link[rel="manifest"]'); if(ex) ex.remove();
       const link=document.createElement("link"); link.rel="manifest";
       link.href=URL.createObjectURL(new Blob([JSON.stringify(manifest)],{type:"application/json"}));
@@ -1420,7 +1461,7 @@ async function aiIdeas(){
   try{
     const ctx=sample.map(c=>aiCtx(c, 700)).join("\n\n");
     const ans=await orChat([
-      {role:"system", content:"너는 에디톨로지(편집학) 조수다. 김정운의 '창조는 편집이다' 관점으로, 서로 다른 노트 조각을 잇는 새로운 발상을 만든다. 사용자의 노트 카드들을 읽고, 아직 연결되지 않은 조각들을 가로지르는 신박한 아이디어 3개를 제안하라. 반드시 아래 형식을 지켜라:\n\n## 아이디어: <짧은 제목>\n근거 카드: [[카드제목1]] ✕ [[카드제목2]]\n<왜 이 조합이 새로운가, 무엇을 해볼 수 있는가 — 3~5문장. 실행 가능한 첫걸음 1개 포함.>\n\n(3회 반복. 다른 말은 하지 마라.)"},
+      {role:"system", content:"너는 연구기획 조수다. '창조는 편집이다'라는 관점으로, 서로 다른 연구 기록 조각을 잇는 새로운 발상을 만든다. 사용자의 연구노트·업무일지 카드들을 읽고, 아직 연결되지 않은 관찰·측정·아이디어를 가로지르는 신박한 연구 아이디어 3개를 제안하라. 실험적으로 검증 가능한 것을 우선하라. 반드시 아래 형식을 지켜라:\n\n## 아이디어: <짧은 제목>\n근거 카드: [[카드제목1]] ✕ [[카드제목2]]\n<왜 이 조합이 새로운가, 무엇을 해볼 수 있는가 — 3~5문장. 실행 가능한 첫 실험 1개 포함.>\n\n(3회 반복. 다른 말은 하지 마라.)"},
       {role:"user", content:"## 내 노트 카드들\n\n"+ctx+(theme?"\n\n## 주제 힌트\n"+theme:"")}
     ], 4000);
     window._aiIdeas=ans.split(/^## /m).filter(s=>s.trim().startsWith("아이디어")).map(s=>"## "+s.trim());
@@ -1437,6 +1478,38 @@ function aiSaveIdea(i){
   const card={id:uid(), title:title, body:s+"\n\n---\n#발상 #AI추천", tags:["발상","AI"],
     attachments:{}, pinned:false, created:Date.now(), updated:Date.now()};
   db.cards.push(card); _vecCache.clear(); save(); render(); toast("발상을 카드로 저장했습니다","열기",()=>{toggleAI();openCard(card.id);});
+}
+
+/* ---------- 타임라인 ---------- */
+function toggleTimeline(){
+  const v=document.getElementById("tlView"); v.classList.toggle("show");
+  document.getElementById("tlBtn").classList.toggle("on", v.classList.contains("show"));
+  if(v.classList.contains("show")) renderTimeline();
+}
+function renderTimeline(){
+  const body=document.getElementById("tlBody");
+  const cards=liveCards().slice().sort((a,b)=>(b.created||0)-(a.created||0));
+  if(!cards.length){ body.innerHTML='<div class="rp-empty">기록이 없습니다.</div>'; return; }
+  const months={};
+  for(const c of cards){
+    const d=new Date(c.created||Date.now());
+    const key=d.getFullYear()+"년 "+(d.getMonth()+1)+"월";
+    (months[key]=months[key]||[]).push(c);
+  }
+  let html="";
+  for(const [m,list] of Object.entries(months)){
+    html+='<div class="tl-month">'+esc(m)+' <span style="color:var(--muted);font-weight:400">· '+list.length+'건</span></div>';
+    for(const c of list){
+      const d=new Date(c.created||0);
+      const ds=String(d.getMonth()+1).padStart(2,"0")+"."+String(d.getDate()).padStart(2,"0")+" ("+["일","월","화","수","목","금","토"][d.getDay()]+")";
+      const tg=(c.tags||[]).slice(0,3).map(x=>"<span>"+esc(x)+"</span>").join("");
+      const flag=needsCheck(c)?'<span class="tl-flag">점검</span>':"";
+      html+='<div class="tl-row" onclick="toggleTimeline();openCard(\''+c.id+'\')">'+
+        '<div class="tl-date">'+ds+'</div><div class="tl-title">'+esc(c.title||"무제")+flag+'</div>'+
+        '<div class="tl-tags">'+tg+'</div></div>';
+    }
+  }
+  body.innerHTML=html;
 }
 </script>
 </body>
