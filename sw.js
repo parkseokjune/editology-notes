@@ -1,5 +1,5 @@
 // 에디톨로지 서비스워커 — 오프라인 동작(앱 셸 캐시)
-const CACHE = "editology-v6";
+const CACHE = "editology-v7";
 const ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icon-512.png"];
 
 self.addEventListener("install", (e) => {

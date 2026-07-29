@@ -1,7 +1,7 @@
 {
-  "name": "아이블포노닉스 연구노트",
+  "name": "아이블포토닉스 연구노트",
   "short_name": "AP 연구노트",
-  "description": "아이블포노닉스 연구 기록을 모으고 잇고 검색하는 워크스페이스",
+  "description": "아이블포토닉스 연구 기록을 모으고 잇고 검색하는 워크스페이스",
   "lang": "ko",
   "display": "standalone",
   "orientation": "any",
