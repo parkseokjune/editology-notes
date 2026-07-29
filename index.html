@@ -244,6 +244,37 @@
     .editor-head,.editor-body,.editor-meta{padding-left:20px;padding-right:20px}
     .editor-head{padding-top:52px}
   }
+
+  /* ---------- AI 패널 (RAG + 발상 추천) ---------- */
+  #aiView{position:fixed;inset:0;z-index:60;display:none;flex-direction:column;background:var(--bg)}
+  #aiView.show{display:flex}
+  .ai-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+    padding:14px 20px;border-bottom:1px solid var(--border);background:var(--panel)}
+  .ai-head h2{font-size:17px;margin:0}
+  .ai-cfg{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .ai-cfg input{width:230px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;
+    background:var(--panel-2);color:var(--text);font-size:13px}
+  .ai-cfg select{padding:7px 8px;border:1px solid var(--border);border-radius:8px;
+    background:var(--panel-2);color:var(--text);font-size:13px}
+  .ai-body{flex:1;overflow:auto;display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:18px 20px}
+  .ai-col{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 18px;
+    display:flex;flex-direction:column;min-height:0;overflow:auto}
+  .ai-col h3{margin:0 0 4px;font-size:15px}
+  .ai-hint{color:var(--muted);font-size:12.5px;margin:0 0 10px}
+  .ai-askrow{display:flex;gap:8px;margin-bottom:10px}
+  .ai-askrow input{flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:8px;
+    background:var(--panel-2);color:var(--text);font-size:14px}
+  .ai-answer{font-size:14px;line-height:1.7;white-space:normal}
+  .ai-answer img{max-width:100%}
+  .ai-src{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+  .ai-src span{background:var(--accent-soft);color:var(--accent);border-radius:999px;
+    padding:3px 10px;font-size:12px;cursor:pointer}
+  .ai-idea{border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:var(--panel-2)}
+  .ai-idea h4{margin:0 0 6px;font-size:14px}
+  .ai-idea .btn{margin-top:8px}
+  .ai-busy{color:var(--muted);font-size:13px;animation:aiPulse 1.2s infinite}
+  @keyframes aiPulse{0%,100%{opacity:.4}50%{opacity:1}}
+  @media (max-width:860px){ .ai-body{grid-template-columns:1fr} .ai-cfg input{width:150px} }
 </style>
 </head>
 <body>
@@ -261,6 +292,7 @@
     <div class="toolbar">
       <button class="btn primary" onclick="newCard()">＋ 새 카드</button>
       <button class="btn tiny" id="graphBtn" onclick="toggleGraph()">🕸 지도</button>
+      <button class="btn tiny" id="aiBtn" onclick="toggleAI()">🤖 AI</button>
       <button class="btn tiny" id="trashBtn" onclick="toggleTrash()">🗑 휴지통</button>
       <button class="btn tiny" onclick="exportDB()">내보내기</button>
       <button class="btn tiny" onclick="document.getElementById('importFile').click()">가져오기</button>
@@ -334,6 +366,43 @@
 </div>
 
 <div id="acBox"></div>
+
+<!-- AI 패널 -->
+<div id="aiView" role="dialog" aria-label="AI">
+  <div class="ai-head">
+    <h2>🤖 AI — 노트에게 묻고, 발상을 얻는다</h2>
+    <div class="ai-cfg">
+      <input id="aiKeyInput" type="password" placeholder="OpenRouter API 키 (이 브라우저에만 저장)" autocomplete="off">
+      <select id="aiModelSel">
+        <option value="anthropic/claude-sonnet-5">Claude Sonnet 5 · 빠름</option>
+        <option value="anthropic/claude-opus-5">Claude Opus 5 · 깊음</option>
+      </select>
+      <button class="btn tiny" onclick="aiSaveCfg()">저장</button>
+      <button class="btn tiny" onclick="toggleAI()">✕ 닫기</button>
+    </div>
+  </div>
+  <div class="ai-body">
+    <section class="ai-col">
+      <h3>📖 노트에게 묻기</h3>
+      <p class="ai-hint">질문과 관련된 카드를 찾아 그 근거로만 답합니다. 관련 카드 내용만 API로 전송됩니다 (Anthropic 직접 라우팅 · 데이터수집 차단).</p>
+      <div class="ai-askrow">
+        <input id="aiQ" placeholder="예: 몰딩 후 직경 측정값이 얼마였지?" onkeydown="if(event.key==='Enter')aiAsk()">
+        <button class="btn primary" onclick="aiAsk()">묻기</button>
+      </div>
+      <div id="aiSrc" class="ai-src"></div>
+      <div id="aiA" class="ai-answer"></div>
+    </section>
+    <section class="ai-col">
+      <h3>💡 새로운 발상</h3>
+      <p class="ai-hint">노트 조각들을 가로질러 편집해, 아직 아무도 잇지 않은 조합을 제안합니다. 마음에 들면 카드로 저장하세요.</p>
+      <div class="ai-askrow">
+        <input id="aiTheme" placeholder="(선택) 주제 힌트 — 예: 저주파 대역 개선" onkeydown="if(event.key==='Enter')aiIdeas()">
+        <button class="btn primary" onclick="aiIdeas()">발상 뽑기</button>
+      </div>
+      <div id="aiI" class="ai-answer"></div>
+    </section>
+  </div>
+</div>
 
 <div class="modal-bg" id="modalBg">
   <div class="modal">
@@ -1259,6 +1328,116 @@ initTheme();
 if(fsSupported()){ document.getElementById("fileConnectBtn").style.display=""; document.getElementById("fileOpenBtn").style.display=""; }
 renderWelcome();
 render();
+/* ---------- AI: RAG 질문 + 발상 추천 (OpenRouter, 키는 브라우저에만) ---------- */
+const AI_KEY="editology_or_key", AI_MODEL="editology_or_model";
+function aiKey(){ return localStorage.getItem(AI_KEY)||""; }
+function aiModel(){ return localStorage.getItem(AI_MODEL)||"anthropic/claude-sonnet-5"; }
+function toggleAI(){
+  const v=document.getElementById("aiView"); v.classList.toggle("show");
+  if(v.classList.contains("show")){
+    document.getElementById("aiKeyInput").value=aiKey();
+    document.getElementById("aiModelSel").value=aiModel();
+    if(!aiKey()) document.getElementById("aiKeyInput").focus();
+    else document.getElementById("aiQ").focus();
+  }
+}
+function aiSaveCfg(){
+  localStorage.setItem(AI_KEY, document.getElementById("aiKeyInput").value.trim());
+  localStorage.setItem(AI_MODEL, document.getElementById("aiModelSel").value);
+  toast("AI 설정을 이 브라우저에 저장했습니다");
+}
+async function orChat(messages, maxTokens){
+  const key=aiKey();
+  if(!key){ toast("먼저 OpenRouter API 키를 입력·저장하세요"); throw new Error("키 없음"); }
+  const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(), 180000);
+  try{
+    const r=await fetch("https://openrouter.ai/api/v1/chat/completions",{
+      method:"POST", signal:ctrl.signal,
+      headers:{"Authorization":"Bearer "+key, "Content-Type":"application/json"},
+      body:JSON.stringify({ model:aiModel(), max_tokens:maxTokens||4000, messages:messages,
+        provider:{order:["anthropic"], allow_fallbacks:false, data_collection:"deny"} })
+    });
+    if(!r.ok) throw new Error("API "+r.status+" — "+(await r.text()).slice(0,180));
+    const d=await r.json();
+    const out=d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content;
+    if(!out) throw new Error("빈 응답");
+    return out;
+  } finally{ clearTimeout(to); }
+}
+function aiRetrieve(query, k){
+  const qv=Object.create(null);
+  for(const tk of tokenize(query)) qv[tk]=(qv[tk]||0)+1;
+  const ql=query.toLowerCase(); const scored=[];
+  for(const c of liveCards()){
+    let s=cosine(qv, vectorOf(c));
+    if((c.title||"").toLowerCase().split(/\s+/).some(w=>w && ql.includes(w))) s+=0.15;
+    if((c.tags||[]).some(t=>ql.includes(t.toLowerCase()))) s+=0.1;
+    if(s>0.02) scored.push({c,s});
+  }
+  scored.sort((a,b)=>b.s-a.s);
+  return scored.slice(0,k||8).map(x=>x.c);
+}
+function aiCtx(c, lim){
+  const date=c.created?new Date(c.created).toISOString().slice(0,10):"";
+  return "### "+(c.title||"무제")+"\n(태그: "+(c.tags||[]).join(", ")+" · "+date+")\n"
+    + stripMarkup(c.body||"").replace(/\s+/g," ").trim().slice(0, lim||1600);
+}
+async function aiAsk(){
+  const q=document.getElementById("aiQ").value.trim(); if(!q) return;
+  const srcEl=document.getElementById("aiSrc"), aEl=document.getElementById("aiA");
+  const hits=aiRetrieve(q, 8);
+  srcEl.innerHTML=hits.map(c=>'<span onclick="toggleAI();openCard(\''+c.id+'\')">'+esc((c.title||"무제").slice(0,24))+'</span>').join("");
+  if(!hits.length){ aEl.innerHTML='<div class="ai-busy">질문과 관련된 카드를 못 찾았습니다. 검색어를 바꿔보세요.</div>'; return; }
+  aEl.innerHTML='<div class="ai-busy">관련 카드 '+hits.length+'장을 읽고 생각 중…</div>';
+  try{
+    const ctx=hits.map(c=>aiCtx(c)).join("\n\n");
+    const ans=await orChat([
+      {role:"system", content:"너는 사용자의 개인 연구노트·메모 비서다. 아래 제공된 카드 내용만 근거로 한국어로 간결히 답한다. 근거가 된 카드는 [[카드 제목]] 형식으로 본문에 인용한다. 카드에 없는 내용은 추측하지 말고 '노트에 없다'고 말한다."},
+      {role:"user", content:"## 내 노트 카드들\n\n"+ctx+"\n\n## 질문\n"+q}
+    ], 3000);
+    aEl.innerHTML=renderMD(ans, null, null);
+  }catch(e){ aEl.innerHTML='<div class="ai-busy">오류: '+esc(String(e.message||e))+'</div>'; }
+}
+function aiSamplePool(){
+  const pool=liveCards(); if(pool.length<=15) return pool.slice();
+  const byLinks=pool.slice().sort((a,b)=>outLinks(b).length-outLinks(a).length);
+  const picked=new Map();
+  for(const c of byLinks.slice(0,5)) picked.set(c.id,c);
+  for(const c of pool.filter(x=>x.pinned)) picked.set(c.id,c);
+  const rest=pool.filter(c=>!picked.has(c.id));
+  while(picked.size<15 && rest.length){
+    const i=Math.floor(Math.random()*rest.length);
+    const c=rest.splice(i,1)[0]; picked.set(c.id,c);
+  }
+  return [...picked.values()];
+}
+async function aiIdeas(){
+  const theme=document.getElementById("aiTheme").value.trim();
+  const iEl=document.getElementById("aiI");
+  const sample=aiSamplePool();
+  if(sample.length<2){ iEl.innerHTML='<div class="ai-busy">카드가 2장 이상 있어야 발상을 뽑을 수 있습니다.</div>'; return; }
+  iEl.innerHTML='<div class="ai-busy">카드 '+sample.length+'장을 가로질러 편집 중…</div>';
+  try{
+    const ctx=sample.map(c=>aiCtx(c, 700)).join("\n\n");
+    const ans=await orChat([
+      {role:"system", content:"너는 에디톨로지(편집학) 조수다. 김정운의 '창조는 편집이다' 관점으로, 서로 다른 노트 조각을 잇는 새로운 발상을 만든다. 사용자의 노트 카드들을 읽고, 아직 연결되지 않은 조각들을 가로지르는 신박한 아이디어 3개를 제안하라. 반드시 아래 형식을 지켜라:\n\n## 아이디어: <짧은 제목>\n근거 카드: [[카드제목1]] ✕ [[카드제목2]]\n<왜 이 조합이 새로운가, 무엇을 해볼 수 있는가 — 3~5문장. 실행 가능한 첫걸음 1개 포함.>\n\n(3회 반복. 다른 말은 하지 마라.)"},
+      {role:"user", content:"## 내 노트 카드들\n\n"+ctx+(theme?"\n\n## 주제 힌트\n"+theme:"")}
+    ], 4000);
+    window._aiIdeas=ans.split(/^## /m).filter(s=>s.trim().startsWith("아이디어")).map(s=>"## "+s.trim());
+    if(!window._aiIdeas.length) window._aiIdeas=[ans];
+    iEl.innerHTML=window._aiIdeas.map((s,i)=>
+      '<div class="ai-idea">'+renderMD(s, null, null)+
+      '<button class="btn tiny" onclick="aiSaveIdea('+i+')">＋ 카드로 저장</button></div>').join("");
+  }catch(e){ iEl.innerHTML='<div class="ai-busy">오류: '+esc(String(e.message||e))+'</div>'; }
+}
+function aiSaveIdea(i){
+  const s=(window._aiIdeas||[])[i]; if(!s) return;
+  const m=s.match(/^## 아이디어[:：]?\s*(.+)$/m);
+  const title="발상 — "+((m&&m[1])||new Date().toLocaleDateString("ko-KR")).trim().slice(0,60);
+  const card={id:uid(), title:title, body:s+"\n\n---\n#발상 #AI추천", tags:["발상","AI"],
+    attachments:{}, pinned:false, created:Date.now(), updated:Date.now()};
+  db.cards.push(card); _vecCache.clear(); save(); render(); toast("발상을 카드로 저장했습니다","열기",()=>{toggleAI();openCard(card.id);});
+}
 </script>
 </body>
 </html>
