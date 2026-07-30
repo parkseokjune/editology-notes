@@ -1578,8 +1578,18 @@ async function driveSync(interactive){
     let stat = null;
     if(fileId){
       try{
-        const remote = await (await driveApi("drive/v3/files/"+fileId+"?alt=media")).json();
-        stat = driveMerge(remote.cards);
+        // 변경 없으면 내려받기 생략 (이미지 포함으로 파일이 커서)
+        const meta = await (await driveApi("drive/v3/files/"+fileId+"?fields=modifiedTime")).json();
+        const lastM = localStorage.getItem("editology_drive_mtime");
+        const lastUp = parseInt(localStorage.getItem("editology_drive_synced")||"0",10);
+        const localMax = Math.max(0, ...db.cards.map(c=>c.updated||0));
+        if(meta.modifiedTime === lastM && localMax <= lastUp && !interactive){
+          toast("동기화 — 변경 없음"); return;
+        }
+        if(meta.modifiedTime !== lastM){
+          const remote = await (await driveApi("drive/v3/files/"+fileId+"?alt=media")).json();
+          stat = driveMerge(remote.cards);
+        } else { stat = {added:0, updated:0}; }
       }catch(e){ fileId = null; }   // 파일 소실 → 재생성
     }
     if(!fileId){
@@ -1591,8 +1601,10 @@ async function driveSync(interactive){
       fileId = made.id; stat = {added: 0, updated: 0};
       toast("드라이브에 동기화 파일을 만들었습니다");
     } else {
-      await driveApi("upload/drive/v3/files/"+fileId+"?uploadType=media", {
-        method: "PATCH", headers: {"Content-Type": "application/json"}, body: drivePayload()});
+      const up = await (await driveApi("upload/drive/v3/files/"+fileId+"?uploadType=media&fields=modifiedTime", {
+        method: "PATCH", headers: {"Content-Type": "application/json"}, body: drivePayload()})).json();
+      if(up.modifiedTime) localStorage.setItem("editology_drive_mtime", up.modifiedTime);
+      localStorage.setItem("editology_drive_synced", String(Date.now()));
     }
     localStorage.setItem(DRV_FILE, fileId); localStorage.setItem(DRV_CONN, "1");
     btn.textContent = "동기화";
