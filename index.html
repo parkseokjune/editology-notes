@@ -294,6 +294,7 @@
   .tl-tags span{font-size:11px;color:var(--muted);background:var(--panel-2);border-radius:999px;padding:1px 8px}
   .tl-flag{color:var(--accent);font-size:11.5px;margin-left:6px}
 </style>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 <button class="icon-btn hamburger" id="hamburger" onclick="document.body.classList.toggle('nav-open')">☰</button>
@@ -313,6 +314,8 @@
       <button class="btn tiny" id="aiBtn" onclick="toggleAI()">AI 분석</button>
       <button class="btn tiny" id="trashBtn" onclick="toggleTrash()">휴지통</button>
       <button class="btn tiny" id="tlBtn" onclick="toggleTimeline()">타임라인</button>
+      <button class="btn tiny" id="driveBtn" style="display:none" onclick="driveSync(true)">드라이브 연결</button>
+      <button class="btn tiny" id="syncBtn" onclick="encSync(true)">동기화</button>
       <button class="btn tiny" onclick="exportDB()">내보내기</button>
       <button class="btn tiny" onclick="document.getElementById('importFile').click()">가져오기</button>
       <button class="btn tiny" id="fileConnectBtn" style="display:none" onclick="connectFile()">파일 연결</button>
@@ -1511,6 +1514,150 @@ function renderTimeline(){
   }
   body.innerHTML=html;
 }
+
+/* ---------- 구글 드라이브 동기화 (drive.file — 이 앱이 만든 파일만 접근) ---------- */
+const DRIVE_CLIENT_ID = "__DRIVE_CLIENT_ID__";
+const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+const DRIVE_FILENAME = "aible_notes_sync.json";
+const DRV_CONN = "editology_drive_on", DRV_FILE = "editology_drive_fileid";
+let _driveToken = null, _driveTokenExp = 0, _driveBusy = false;
+
+function driveInitUI(){
+  const b = document.getElementById("driveBtn");
+  if(!b || DRIVE_CLIENT_ID.indexOf("__") === 0) return;   // 클라이언트 ID 미설정 시 숨김 유지
+  b.style.display = "";
+  if(localStorage.getItem(DRV_CONN)) b.textContent = "동기화";
+  if(localStorage.getItem(DRV_CONN)) setTimeout(()=>driveSync(false), 1500);
+}
+function driveGetToken(interactive){
+  return new Promise((resolve, reject)=>{
+    if(_driveToken && Date.now() < _driveTokenExp - 60000) return resolve(_driveToken);
+    if(typeof google === "undefined" || !google.accounts) return reject(new Error("구글 스크립트 로드 전 — 잠시 후 다시"));
+    const tc = google.accounts.oauth2.initTokenClient({
+      client_id: DRIVE_CLIENT_ID, scope: DRIVE_SCOPE,
+      callback: (t)=>{
+        if(t && t.access_token){ _driveToken = t.access_token; _driveTokenExp = Date.now() + (t.expires_in||3600)*1000; resolve(_driveToken); }
+        else reject(new Error("토큰 획득 실패"));
+      },
+      error_callback: (e)=>reject(new Error(e && e.type || "팝업이 닫혔습니다")),
+    });
+    tc.requestAccessToken({prompt: localStorage.getItem(DRV_CONN) ? "" : "consent"});
+  });
+}
+async function driveApi(path, opts){
+  const tok = await driveGetToken(false);
+  const r = await fetch("https://www.googleapis.com/" + path, Object.assign({}, opts, {
+    headers: Object.assign({Authorization: "Bearer " + tok}, (opts && opts.headers) || {}),
+  }));
+  if(!r.ok) throw new Error("Drive API " + r.status);
+  return r;
+}
+function drivePayload(){ return JSON.stringify({v:1, updatedAt: Date.now(), cards: db.cards}); }
+function driveMerge(remoteCards){
+  const byId = new Map(db.cards.map(c=>[c.id, c]));
+  let added = 0, updated = 0;
+  for(const rc of remoteCards || []){
+    const lc = byId.get(rc.id);
+    if(!lc){ db.cards.push(rc); added++; }
+    else if((rc.updated||0) > (lc.updated||0)){ Object.assign(lc, rc); updated++; }
+  }
+  return {added, updated};
+}
+async function driveSync(interactive){
+  if(_driveBusy) return; _driveBusy = true;
+  const btn = document.getElementById("driveBtn");
+  try{
+    if(interactive) btn.textContent = "동기화 중…";
+    await driveGetToken(interactive);
+    let fileId = localStorage.getItem(DRV_FILE);
+    if(!fileId){
+      const q = encodeURIComponent("name='"+DRIVE_FILENAME+"' and trashed=false");
+      const found = await (await driveApi("drive/v3/files?q="+q+"&fields=files(id)")).json();
+      fileId = found.files && found.files[0] && found.files[0].id;
+    }
+    let stat = null;
+    if(fileId){
+      try{
+        const remote = await (await driveApi("drive/v3/files/"+fileId+"?alt=media")).json();
+        stat = driveMerge(remote.cards);
+      }catch(e){ fileId = null; }   // 파일 소실 → 재생성
+    }
+    if(!fileId){
+      const meta = {name: DRIVE_FILENAME, mimeType: "application/json"};
+      const body = "--b\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" + JSON.stringify(meta) +
+                   "\r\n--b\r\nContent-Type: application/json\r\n\r\n" + drivePayload() + "\r\n--b--";
+      const made = await (await driveApi("upload/drive/v3/files?uploadType=multipart&fields=id", {
+        method: "POST", headers: {"Content-Type": "multipart/related; boundary=b"}, body})).json();
+      fileId = made.id; stat = {added: 0, updated: 0};
+      toast("드라이브에 동기화 파일을 만들었습니다");
+    } else {
+      await driveApi("upload/drive/v3/files/"+fileId+"?uploadType=media", {
+        method: "PATCH", headers: {"Content-Type": "application/json"}, body: drivePayload()});
+    }
+    localStorage.setItem(DRV_FILE, fileId); localStorage.setItem(DRV_CONN, "1");
+    btn.textContent = "동기화";
+    if(stat && (stat.added || stat.updated)){ _vecCache.clear(); save(); render(); }
+    toast("드라이브 동기화 완료" + (stat && (stat.added||stat.updated) ? " (+"+stat.added+" / 갱신 "+stat.updated+")" : ""));
+  }catch(e){
+    btn.textContent = localStorage.getItem(DRV_CONN) ? "동기화" : "드라이브 연결";
+    if(interactive) toast("동기화 실패: " + (e.message || e));
+  }finally{ _driveBusy = false; }
+}
+driveInitUI();
+
+/* ---------- 암호화 동기화 (sync.enc — 평문은 기기 밖으로 안 나감) ---------- */
+const ENC_PASS_KEY = "editology_sync_pass";
+let _encBusy = false;
+function _b64d(s){ const bin=atob(s); const a=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) a[i]=bin.charCodeAt(i); return a; }
+async function encDecrypt(blob, pass){
+  const enc = new TextEncoder();
+  const keyMat = await crypto.subtle.importKey("raw", enc.encode(pass), "PBKDF2", false, ["deriveKey"]);
+  const key = await crypto.subtle.deriveKey(
+    {name:"PBKDF2", salt:_b64d(blob.salt), iterations:blob.iter, hash:"SHA-256"},
+    keyMat, {name:"AES-GCM", length:256}, false, ["decrypt"]);
+  const pt = await crypto.subtle.decrypt({name:"AES-GCM", iv:_b64d(blob.nonce)}, key, _b64d(blob.ct));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+async function encSync(interactive){
+  if(_encBusy) return; _encBusy = true;
+  const btn = document.getElementById("syncBtn");
+  try{
+    const r = await fetch("./sync.enc?t="+Date.now(), {cache:"no-store"});
+    if(!r.ok){ if(interactive) toast("동기화 파일이 아직 없습니다"); return; }
+    const blob = await r.json();
+    let pass = localStorage.getItem(ENC_PASS_KEY);
+    if(!pass){
+      if(!interactive){ toast("동기화 잠금 해제 필요", "입력", ()=>encSync(true)); return; }
+      pass = window.prompt("동기화 암호를 입력하세요 (최초 1회, 이 브라우저에 저장됩니다)");
+      if(!pass) return;
+    }
+    if(btn) btn.textContent = "동기화 중…";
+    let remote;
+    try{ remote = await encDecrypt(blob, pass.trim()); }
+    catch(e){
+      localStorage.removeItem(ENC_PASS_KEY);
+      if(interactive) toast("암호가 틀렸습니다 — 다시 시도하세요");
+      return;
+    }
+    localStorage.setItem(ENC_PASS_KEY, pass.trim());
+    const byId = new Map(db.cards.map(c=>[c.id, c]));
+    let added=0, updated=0;
+    for(const rc of remote.cards || []){
+      const lc = byId.get(rc.id);
+      if(!lc){ db.cards.push(rc); added++; }
+      else if((rc.updated||0) > (lc.updated||0)){ Object.assign(lc, rc); updated++; }
+    }
+    if(added || updated){ _vecCache.clear(); save(); render(); }
+    toast("동기화 완료" + (added||updated ? " — 추가 "+added+" · 갱신 "+updated : " (변경 없음)"));
+  }catch(e){
+    if(interactive) toast("동기화 실패: " + (e.message||e));
+  }finally{
+    if(btn) btn.textContent = "동기화";
+    _encBusy = false;
+  }
+}
+// 접속 시 자동 동기화 (파일이 있고 암호가 저장돼 있으면 조용히)
+setTimeout(()=>{ try{ encSync(false); }catch(e){} }, 1200);
 </script>
 </body>
 </html>
