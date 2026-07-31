@@ -1292,7 +1292,8 @@ function buildConcept(){
 /* ---------- Graph view (3D 구형 배치 + 원근 투영, 라이브러리 없음) ---------- */
 let graphOn=false, graphRAF=null, gNodes=[], gEdges=[], gDrag=null, gDownPos=null, gHover=null, gPan=null,
     gCanvas=null, gCtx=null, gW=0, gH=0, gDpr=1, gTf={s:1,ox:0,oy:0}, gAdj={}, gTemp=1,
-    gRot={yaw:-0.6, pitch:0.28}, gRotDrag=null, gAuto=true, gCamD=null,
+    gRot={yaw:-0.6, pitch:0.28}, gRotDrag=null, gAuto=true, gCamD=null, gCamTarget=null,
+    gStars=[], gGaps=[], gNodeById={}, gCatAnchor={},
     g3d=localStorage.getItem("editology_graph_3d")!=="0";
 function hueOf(str){ let h=0; for(let i=0;i<str.length;i++) h=(h*31+str.charCodeAt(i))%360; return h; }
 /* 카테고리 팔레트 — 보기 좋은 색 순환, 빈도 높은 주제부터 배정 */
@@ -1363,8 +1364,8 @@ function buildGraph(){
   Object.entries(catCount).sort((a,b)=>b[1]-a[1]).forEach(([k],i)=>{
     gCatHue[k]= i<GPALETTE.length ? GPALETTE[i] : hueOf(k);
   });
-  // 구(볼륨) 배치: 반지름 R 공 안을 노드로 채운다
-  const R=Math.min(gW,gH)*0.5+40;
+  // 구(볼륨) 배치: 반지름 R 공 안을 노드로 채운다 — 우주 스케일
+  const R=Math.min(gW,gH)*0.85+80;
   const oldZ={}; for(const n of gNodes) oldZ[n.id]=n.z;
   gNodes=cards.map((c,i)=>{
     const old=oldPos[c.id];
@@ -1379,13 +1380,40 @@ function buildGraph(){
       cat, hue:gCatHue[cat] };
   });
   const nodeById={}; for(const n of gNodes) nodeById[n.id]=n;
+  gNodeById=nodeById;
   for(const e of gEdges){
     e.na=nodeById[e.a]; e.nb=nodeById[e.b];   // 매 프레임 find() 제거
     if(e.na&&e.nb&&e.type==="link"){          // 선색 = 양끝 노드 색의 중간(짧은 호)
       const h1=e.na.hue, h2=e.nb.hue, dh=((h2-h1+540)%360)-180;
-      e.col="hsl("+(((h1+dh/2)+360)%360)+",55%,60%)";
+      e.col="hsl("+(((h1+dh/2)+360)%360)+",70%,62%)";
     }
+    // 곡선 휨(뉴런 섬유 느낌) — 카드쌍마다 고정된 방향·크기
+    let hsh=0; const key=e.a+e.b; for(let i=0;i<key.length;i++) hsh=(hsh*31+key.charCodeAt(i))|0;
+    e.curve=((hsh%100)/100-0.5)*0.5;
   }
+  // 위치 = 의미: 주제 앵커를 구면에 고르게(피보나치) 배치 → 주제별 성운
+  const catList=Object.keys(gCatHue);
+  gCatAnchor={};
+  const GA=Math.PI*(3-Math.sqrt(5));
+  catList.forEach((k,i)=>{
+    const t=catList.length>1? i/(catList.length-1) : 0.5;
+    const zz=g3d?(1-2*t):0;
+    const rr=Math.sqrt(Math.max(0,1-zz*zz)), th=GA*i;
+    const AR=R*0.85;
+    gCatAnchor[k]={x:AR*rr*Math.cos(th), y:g3d?AR*zz:AR*rr*Math.sin(th)*0.9, z:g3d?AR*rr*Math.sin(th):0,
+                   hue:gCatHue[k], n:catCount[k]||0, name:k};
+  });
+  for(const n of gNodes){ n.anchor=gCatAnchor[n.cat]; n.degN=Math.min(1, n.deg/8); }
+  // 별밭 — 패럴랙스 배경 (진입감의 기준점)
+  gStars=[];
+  for(let i=0;i<420;i++){
+    const u=Math.random()*2-1, th=Math.random()*Math.PI*2;
+    const rr=R*(1.15+Math.random()*2.1), sq=Math.sqrt(1-u*u);
+    gStars.push({x:rr*sq*Math.cos(th), y:rr*sq*Math.sin(th), z:g3d?rr*u:(Math.random()-0.5)*R,
+                 tw:Math.random()*6.28, sz:0.5+Math.random()});
+  }
+  gGaps=[]; window._gGapsDone=false;   // 잠재 시냅스(구조적 공백)는 정착 후 계산
+  gCamD=Math.min(gW,gH)*9; gCamTarget=null;   // 먼 우주에서 시작 → 정착 후 미끄러져 접근
   gTemp=1; gSettled=false; gFitDone=false; gAuto=true;   // 재가열 — 식으며 정착
   const b3=document.getElementById("g3dBtn"); if(b3) b3.textContent=g3d?"2D":"3D";
   renderTagLegend(cards);
@@ -1417,16 +1445,15 @@ function relayoutGraph(){
   gTf={s:1,ox:0,oy:0}; gAuto=true; gFitDone=false; reheatGraph(1);
 }
 function graphZoom(f){
-  if(g3d){ gCamD=Math.max(120, Math.min(60000, (gCamD||Math.min(gW,gH)*2.2+300)/f)); gAuto=false; return; }
+  if(g3d){ gCamTarget=Math.max(90, Math.min(80000, (gCamTarget||gCamD||Math.min(gW,gH)*2.2+300)/f)); gAuto=false; return; }
   const cx=gW/2, cy=gH/2; gTf.ox=cx-(cx-gTf.ox)*f; gTf.oy=cy-(cy-gTf.oy)*f; gTf.s*=f; gTf.s=Math.max(0.2,Math.min(4,gTf.s));
 }
 function stepGraph(){
   const n=gNodes.length;
   // 간격을 넉넉히 — 가시성 우선 (3D는 공간이 넓어 더 벌린다)
-  const spread=Math.max(0.9, Math.min(3.2, Math.sqrt((gW*gH)/(Math.max(2,n)*12000))));
-  const rep=(g3d?60000:18000)*spread;   // 3D는 사이공간을 크게 — 속을 날아다니며 보는 구조
-  const linkRest=(g3d?380:200)*spread, simRest=(g3d?560:290)*spread;
-  const grav=g3d?0.002:0.0035;
+  const spread=Math.max(1.0, Math.min(3.8, Math.sqrt((gW*gH)/(Math.max(2,n)*9000))));
+  const rep=(g3d?120000:22000)*spread;   // 우주 스케일 — 사이공간을 넓게
+  const linkRest=(g3d?520:230)*spread, simRest=(g3d?780:330)*spread;
   for(let i=0;i<n;i++){
     const a=gNodes[i];
     for(let j=i+1;j<n;j++){
@@ -1438,7 +1465,11 @@ function stepGraph(){
       const fx=f*dx/d, fy=f*dy/d, fz=f*dz/d;
       a.vx+=fx; a.vy+=fy; a.vz+=fz; b.vx-=fx; b.vy-=fy; b.vz-=fz;
     }
-    a.vx-=a.x*grav; a.vy-=a.y*grav; a.vz-=a.z*grav;   // 원점(구 중심) 중력
+    // 위치=의미: ① 같은 주제는 주제 앵커(성운 중심)로 끌린다
+    if(a.anchor){ a.vx+=(a.anchor.x-a.x)*0.0028; a.vy+=(a.anchor.y-a.y)*0.0028; if(g3d) a.vz+=(a.anchor.z-a.z)*0.0028; }
+    // ② 연결 많은 허브일수록 중심핵으로 — 뇌의 심부 구조
+    const coreG=0.0006+0.0024*a.degN;
+    a.vx-=a.x*coreG; a.vy-=a.y*coreG; a.vz-=a.z*coreG;
   }
   for(const e of gEdges){
     const a=e.na, b=e.nb; if(!a||!b) continue;
@@ -1459,81 +1490,144 @@ function stepGraph(){
     if(g3d) nd.z+=nd.vz*gTemp; else nd.z=0;
     kin+=nd.vx*nd.vx+nd.vy*nd.vy+nd.vz*nd.vz;
   }
-  gTemp=Math.max(0.03, gTemp*0.988);
+  gTemp=Math.max(0.03, gTemp*0.985);
   return (kin/(gNodes.length||1))*gTemp*gTemp;   // 평균 실변위² — 정착 감지용
 }
 /* 원근 투영: 회전(yaw·pitch) 후 카메라 투영 → n.px/py/ps/pz
    gCamD = 카메라 거리(휠 돌리로 구 속까지 들어감). 카메라 뒤 노드는 컬링. */
-const G_FOCAL=1100;
+const G_FOCAL=760;   // 광각 — 원근 과장으로 진입감 강화
+function projectOne(nd, cy, sy, cp, sp, F, D, ccx, ccy){
+  const X1=nd.x*cy+nd.z*sy, Z1=-nd.x*sy+nd.z*cy;
+  const Y2=nd.y*cp-Z1*sp,  Z2=nd.y*sp+Z1*cp;
+  const dz=D-Z2;                       // 카메라와의 거리
+  nd.cull = g3d && dz<40;              // 지나친 것은 뒤로 사라짐
+  nd.fade = g3d? Math.max(0, Math.min(1,(dz-40)/320)) : 1;
+  const sc=F/Math.max(40, dz);
+  nd.ps=sc; nd.pz=Z2;
+  nd.px=(ccx+X1*sc)*gTf.s+gTf.ox;
+  nd.py=(ccy+Y2*sc)*gTf.s+gTf.oy;
+}
 function projectAll(){
   const cy=Math.cos(gRot.yaw), sy=Math.sin(gRot.yaw);
   const cp=Math.cos(gRot.pitch), sp=Math.sin(gRot.pitch);
   const F=G_FOCAL, D=gCamD||(Math.min(gW,gH)*2.2+300);
   const ccx=gW/2, ccy=gH/2;
-  for(const nd of gNodes){
-    const X1=nd.x*cy+nd.z*sy, Z1=-nd.x*sy+nd.z*cy;
-    const Y2=nd.y*cp-Z1*sp,  Z2=nd.y*sp+Z1*cp;
-    const dz=D-Z2;                       // 카메라와의 거리
-    nd.cull = g3d && dz<44;              // 지나친 노드는 뒤로 사라짐
-    nd.fade = g3d? Math.max(0, Math.min(1,(dz-44)/220)) : 1;   // 스쳐 지나갈 때 페이드
-    const sc=F/Math.max(44, dz);
-    nd.ps=sc; nd.pz=Z2;
-    nd.px=(ccx+X1*sc)*gTf.s+gTf.ox;
-    nd.py=(ccy+Y2*sc)*gTf.s+gTf.oy;
-  }
+  for(const nd of gNodes) projectOne(nd, cy, sy, cp, sp, F, D, ccx, ccy);
+  for(const st of gStars) projectOne(st, cy, sy, cp, sp, F, D, ccx, ccy);
+  for(const k in gCatAnchor) projectOne(gCatAnchor[k], cy, sy, cp, sp, F, D, ccx, ccy);
 }
-function nodeRadius(n){ return (7+Math.min(14,n.deg*2.4))*(n.ps||1); }
+function nodeRadius(n){ return (6+Math.min(13,n.deg*2.2))*(n.ps||1); }
+function isSpark(n){ const c=gNodeById[n.id]&&db.cards.find(x=>x.id===n.id); return n._spark!==undefined? n._spark : (n._spark=!!(c&&(c.tags||[]).some(t=>t==="발상"||t==="개념"))); }
 function drawGraph(){
-  const css=getComputedStyle(document.documentElement);
-  const text=css.getPropertyValue("--text").trim(), panel=css.getPropertyValue("--panel").trim(), muted=css.getPropertyValue("--muted").trim();
-  gCtx.setTransform(gDpr,0,0,gDpr,0,0); gCtx.clearRect(0,0,gW,gH);
+  const t=Date.now()/1000;
+  gCtx.setTransform(gDpr,0,0,gDpr,0,0);
+  // 딥스페이스 배경 — 우주+뇌 무드 (테마 무관, 이 뷰는 항상 밤)
+  const bg=gCtx.createRadialGradient(gW/2,gH/2,0,gW/2,gH/2,Math.max(gW,gH)*0.75);
+  bg.addColorStop(0,"#0a1322"); bg.addColorStop(0.6,"#070d18"); bg.addColorStop(1,"#04070d");
+  gCtx.fillStyle=bg; gCtx.fillRect(0,0,gW,gH);
   const hoverAdj=gHover?gAdj[gHover.id]:null;
   const dimmed=n=> gHover && n!==gHover && !(hoverAdj&&hoverAdj.has(n.id));
-  // 깊이 범위 → 안개(멀수록 흐리게)
   let zMin=1e9, zMax=-1e9;
   for(const n of gNodes){ if(n.pz<zMin) zMin=n.pz; if(n.pz>zMax) zMax=n.pz; }
   const zSpan=Math.max(1, zMax-zMin);
-  const depth=n=> (n.pz-zMin)/zSpan;          // 0=먼쪽, 1=가까운쪽
-  const fog=n=> g3d? 0.3+0.7*depth(n) : 1;
+  const depth=n=> (n.pz-zMin)/zSpan;
+  const fog=n=> g3d? 0.28+0.72*depth(n) : 1;
+  // 별밭 (발광 합성 — 지나가면 시차로 진입감)
+  gCtx.globalCompositeOperation="lighter";
+  for(const st of gStars){
+    if(st.cull) continue;
+    const tw=0.45+0.4*Math.sin(t*1.7+st.tw);
+    gCtx.globalAlpha=Math.min(0.8, tw*(st.fade??1))*0.8;
+    gCtx.fillStyle="#9db8dd";
+    const r=Math.min(2.4, st.sz*(st.ps||0.4)*1.1);
+    gCtx.beginPath(); gCtx.arc(st.px,st.py,Math.max(0.3,r),0,Math.PI*2); gCtx.fill();
+  }
+  // 성운 이름 — 주제 영역 라벨 (위치=의미)
+  gCtx.globalCompositeOperation="source-over";
+  gCtx.textAlign="center"; gCtx.textBaseline="middle";
+  for(const k in gCatAnchor){
+    const A=gCatAnchor[k];
+    if(A.n<5||A.cull) continue;
+    const fs=Math.max(12, Math.min(26, 13+A.n*0.28))*Math.min(1.4,(A.ps||1)*1.9);
+    gCtx.font="700 "+fs+"px -apple-system,sans-serif";
+    gCtx.fillStyle="hsla("+A.hue+",75%,72%,"+(0.13*(A.fade??1))+")";
+    gCtx.fillText(A.name, A.px, A.py);
+  }
+  // 간선: 곡선 발광 섬유 (뉴런) — 점선 없음
+  gCtx.globalCompositeOperation="lighter";
+  gCtx.lineCap="round";
   for(const e of gEdges){
     const a=e.na, b=e.nb; if(!a||!b||a.cull||b.cull) continue;
     const rel=gHover && (a===gHover||b===gHover);
     const df=Math.min(fog(a),fog(b))*Math.min(a.fade??1,b.fade??1);
-    gCtx.beginPath(); gCtx.moveTo(a.px,a.py); gCtx.lineTo(b.px,b.py);
-    const w=e.w!==undefined?e.w:(e.type==="link"?0.6:0.35);  // 연결 강도 → 굵기·진하기
-    const es=Math.min(1.9, ((a.ps||1)+(b.ps||1))/2*gTf.s);   // 근접 간선 과대 방지
-    if(e.type==="link"){ gCtx.strokeStyle=e.col||"hsl(207,55%,60%)"; gCtx.globalAlpha=(gHover?(rel?1:0.06):0.7)*(0.35+0.65*w)*df; gCtx.lineWidth=(0.8+3.2*w)*es; gCtx.setLineDash([]); }
-    else{ gCtx.strokeStyle=muted; gCtx.globalAlpha=(gHover?(rel?0.8:0.04):0.4)*(0.4+0.6*w)*df; gCtx.lineWidth=(0.6+1.6*w)*es; gCtx.setLineDash([4,5]); }
+    const w=e.w!==undefined?e.w:0.5;
+    const es=Math.min(1.6, ((a.ps||1)+(b.ps||1))/2*gTf.s);
+    const mx=(a.px+b.px)/2, my=(a.py+b.py)/2;
+    const ddx=b.px-a.px, ddy=b.py-a.py;
+    const cxp=mx-ddy*e.curve*0.35, cyp=my+ddx*e.curve*0.35;   // 수직 휨 → 유기적 곡선
+    gCtx.beginPath(); gCtx.moveTo(a.px,a.py); gCtx.quadraticCurveTo(cxp,cyp,b.px,b.py);
+    if(e.type==="link"){
+      gCtx.strokeStyle=e.col||"hsl(207,70%,62%)";
+      gCtx.globalAlpha=Math.max(0.05,(gHover?(rel?0.95:0.03):0.34)*(0.35+0.65*w)*df);
+      gCtx.lineWidth=Math.max(0.45,(0.6+1.8*w)*es);
+    }else{
+      gCtx.strokeStyle="hsl(215,45%,60%)";
+      gCtx.globalAlpha=(gHover?(rel?0.5:0.02):0.11)*(0.4+0.6*w)*df;
+      gCtx.lineWidth=Math.max(0.3,0.5*es+0.2);
+    }
     gCtx.stroke();
   }
-  gCtx.globalAlpha=1; gCtx.setLineDash([]);
-  // 노드: 먼 것부터 그리기(페인터), 라벨은 가깝거나 중요한 것만 — 가시성
+  // 잠재 시냅스 — 아직 이어지지 않았지만 내용이 부르는 연결 (금빛 점멸)
+  for(const gp of gGaps){
+    const a=gp.na, b=gp.nb; if(!a||!b||a.cull||b.cull) continue;
+    const pulse=0.30+0.22*Math.sin(t*2.4+gp.ph);
+    gCtx.strokeStyle="hsl(46,95%,64%)";
+    gCtx.globalAlpha=pulse*Math.min(a.fade??1,b.fade??1);
+    gCtx.lineWidth=1.3;
+    gCtx.setLineDash([7,8]); gCtx.lineDashOffset=-t*26;
+    const mx=(a.px+b.px)/2, my=(a.py+b.py)/2;
+    gCtx.beginPath(); gCtx.moveTo(a.px,a.py); gCtx.quadraticCurveTo(mx-(b.py-a.py)*0.18,my+(b.px-a.px)*0.18,b.px,b.py);
+    gCtx.stroke();
+    gCtx.setLineDash([]);
+  }
+  // 노드: 광점(halo+본체+코어), 발상 카드는 맥동하는 금빛
   const order=gNodes.slice().sort((a,b)=>a.pz-b.pz);
   const labelSet=new Set();
   if(gHover){ labelSet.add(gHover.id); if(hoverAdj) for(const id of hoverAdj) labelSet.add(id); }
   else{
     const cand=order.slice().sort((a,b)=>(depth(b)+Math.min(1,b.deg/6))-(depth(a)+Math.min(1,a.deg/6)));
-    for(const n of cand.slice(0, 46)) labelSet.add(n.id);
+    for(const n of cand.slice(0, 34)) labelSet.add(n.id);
   }
   for(const n of order){
     if(n.cull) continue;
-    const r=Math.min(46, nodeRadius(n)*gTf.s); const dim=dimmed(n); const f=fog(n)*(n.fade??1);
-    const d=depth(n);
-    gCtx.globalAlpha=(dim?0.22:1)*f;
-    gCtx.beginPath(); gCtx.arc(n.px,n.py,Math.max(1.5,r),0,Math.PI*2);
-    if(n.orphan){ gCtx.fillStyle=panel; gCtx.fill(); gCtx.lineWidth=2; gCtx.setLineDash([3,3]); gCtx.strokeStyle=muted; gCtx.stroke(); gCtx.setLineDash([]); }
-    else{
-      gCtx.fillStyle="hsl("+n.hue+",63%,"+Math.round(42+20*d)+"%)";   // 깊이로 명도 변조
-      gCtx.fill();
-      gCtx.lineWidth=(n===gHover||n===gDrag)?3:1.5; gCtx.strokeStyle=panel; gCtx.stroke();
-    }
-    if(labelSet.has(n.id)){
-      const label=n.title.length>14?n.title.slice(0,14)+"…":n.title;
-      const fs=Math.max(9, 12*Math.min(1.25,(n.ps||1))*Math.min(1.3,gTf.s));
-      gCtx.font=(n.deg>=2?"600 ":"")+fs+"px -apple-system,sans-serif";
-      gCtx.textAlign="center"; gCtx.textBaseline="top";
-      gCtx.fillStyle=text; gCtx.globalAlpha=(dim?0.22:0.92)*f; gCtx.fillText(label,n.px,n.py+Math.max(1.5,r)+3);
-    }
+    const spark=isSpark(n);
+    const r=Math.min(40, Math.max(2.2, nodeRadius(n)*gTf.s));
+    const dim=dimmed(n); const f=fog(n)*(n.fade??1);
+    const hue=spark?46:n.hue, sat=spark?95:80, li=spark?66:60;
+    const pu=spark? 1+0.22*Math.sin(t*3+(n.tw||n.px)) : 1;
+    gCtx.globalAlpha=(dim?0.15:1)*f*0.16;                      // halo
+    gCtx.fillStyle="hsl("+hue+","+sat+"%,"+li+"%)";
+    gCtx.beginPath(); gCtx.arc(n.px,n.py,r*2.4*pu,0,Math.PI*2); gCtx.fill();
+    if(spark){ gCtx.globalAlpha=(dim?0.1:1)*f*0.12; gCtx.beginPath(); gCtx.arc(n.px,n.py,r*4*pu,0,Math.PI*2); gCtx.fill(); }
+    gCtx.globalAlpha=(dim?0.22:1)*f*0.85;                      // 본체
+    gCtx.beginPath(); gCtx.arc(n.px,n.py,r,0,Math.PI*2); gCtx.fill();
+    gCtx.globalAlpha=(dim?0.25:1)*f*0.9;                       // 코어
+    gCtx.fillStyle="hsl("+hue+",40%,88%)";
+    gCtx.beginPath(); gCtx.arc(n.px,n.py,Math.max(0.8,r*0.34),0,Math.PI*2); gCtx.fill();
+    if(n.orphan){ gCtx.globalAlpha=0.5*f; gCtx.strokeStyle="#7d8ba0"; gCtx.lineWidth=1; gCtx.setLineDash([2,3]); gCtx.beginPath(); gCtx.arc(n.px,n.py,r+3,0,Math.PI*2); gCtx.stroke(); gCtx.setLineDash([]); }
+  }
+  // 라벨 (일반 합성 — 흰빛 글자)
+  gCtx.globalCompositeOperation="source-over";
+  gCtx.textAlign="center"; gCtx.textBaseline="top";
+  for(const n of order){
+    if(n.cull||!labelSet.has(n.id)) continue;
+    const dim=dimmed(n); const f=fog(n)*(n.fade??1);
+    const r=Math.min(40, Math.max(1.6, nodeRadius(n)*gTf.s));
+    const label=n.title.length>14?n.title.slice(0,14)+"…":n.title;
+    const fs=Math.max(9, 11.5*Math.min(1.2,(n.ps||1))*Math.min(1.3,gTf.s));
+    gCtx.font=(n.deg>=2?"600 ":"")+fs+"px -apple-system,sans-serif";
+    gCtx.fillStyle="#d9e6f7"; gCtx.globalAlpha=(dim?0.18:0.85)*f;
+    gCtx.fillText(label,n.px,n.py+r+3);
   }
   gCtx.globalAlpha=1;
 }
@@ -1543,8 +1637,9 @@ function fitGraph(){
   let maxR=1;
   for(const n of gNodes){ const r=Math.sqrt(n.x*n.x+n.y*n.y+n.z*n.z); if(r>maxR) maxR=r; }
   if(g3d){
-    // 카메라 거리로 전체 구가 화면에 들어오게 — 이후 휠로 속까지 진입
-    gCamD=Math.max(400, Math.min(60000, maxR*G_FOCAL/Math.max(120,(Math.min(gW,gH)/2-60))+maxR*0.15));
+    // 구가 화면을 살짝 넘치게(몰입) 다가간다 — 이후 휠로 속까지 진입
+    const fitD=maxR*G_FOCAL/Math.max(120,(Math.min(gW,gH)/2-60))+maxR*0.15;
+    gCamTarget=Math.max(400, Math.min(80000, fitD*0.5));
     gTf={s:1,ox:0,oy:0};
     return;
   }
@@ -1558,11 +1653,19 @@ function graphLoop(){
   if(!graphOn) return;
   if(!gSettled || gDrag){
     const disp=stepGraph();
-    if(disp<0.01 && !gDrag && gTemp<=0.2){
+    if(disp<0.02 && !gDrag && gTemp<=0.2){
       gSettled=true;   // 실변위 소멸 → 물리 정지(호버·팬·회전은 계속)
       if(!gFitDone){ fitGraph(); gFitDone=true; }   // 최초 정착 시 1회 화면 맞춤
+      if(!window._gGapsDone){   // 잠재 시냅스(구조적 공백) 지연 계산
+        window._gGapsDone=true;
+        setTimeout(()=>{ try{
+          const gp=gapPairs(4);
+          gGaps=gp.map((p,i)=>({na:gNodeById[p.a.id], nb:gNodeById[p.b.id], ph:i*1.7})).filter(g=>g.na&&g.nb);
+        }catch(e){} }, 60);
+      }
     }
   }
+  if(g3d && gCamTarget!==null && gCamD!==null) gCamD+=(gCamTarget-gCamD)*0.12;   // 관성 돌리 — 부드러운 진입
   if(g3d && gAuto && !gDrag && !gRotDrag && !gHover) gRot.yaw+=0.0011;   // 은은한 자동 회전 — 입체감
   projectAll();
   drawGraph();
@@ -1621,9 +1724,9 @@ function bindGraphEvents(){
     gDrag=null; gDownPos=null; gPan=null; gRotDrag=null;
   });
   gCanvas.addEventListener("wheel",e=>{ e.preventDefault();
-    if(g3d){   // 휠 = 구 속으로 들어가기/나오기 (카메라 돌리)
-      const f=e.deltaY<0?0.9:1.11;
-      gCamD=Math.max(120, Math.min(60000, (gCamD||Math.min(gW,gH)*2.2+300)*f));
+    if(g3d){   // 휠 = 구 속으로 들어가기/나오기 (관성 돌리)
+      const f=e.deltaY<0?0.82:1.22;
+      gCamTarget=Math.max(90, Math.min(80000, (gCamTarget||gCamD||Math.min(gW,gH)*2.2+300)*f));
       gAuto=false;
       return;
     }
