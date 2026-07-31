@@ -1400,12 +1400,30 @@ function buildGraph(){
     const zz=g3d?(1-2*t):0;
     const rr=Math.sqrt(Math.max(0,1-zz*zz)), th=GA*i;
     let hsh=0; for(let j=0;j<k.length;j++) hsh=(hsh*31+k.charCodeAt(j))>>>0;
-    const AR=R*(1.3+(hsh%1000)/1000*1.3);   // 성운마다 다른 거리 (R*1.3~2.6)
+    const AR=R*(2.1+(hsh%1000)/1000*2.2);   // 성운마다 다른 거리 (R*2.1~4.3) — 은하 사이 빈 우주
     gCatAnchor[k]={x:AR*rr*Math.cos(th), y:g3d?AR*zz:AR*rr*Math.sin(th)*0.9, z:g3d?AR*rr*Math.sin(th):0,
                    hue:gCatHue[k], n:catCount[k]||0, name:k};
   });
+  for(const n of gNodes){ n.anchor=gCatAnchor[n.cat]; n.degN=Math.min(1, n.deg/8); }
+  // 발상·개념은 제 근거 연구 곁에서 빛난다 — 링크된 카드들이 속한 성운으로
+  const sparky=c=>(c.tags||[]).some(tg=>tg==="발상"||tg==="개념");
   for(const n of gNodes){
-    n.anchor=gCatAnchor[n.cat]; n.degN=Math.min(1, n.deg/8);
+    const c=byId[n.id];
+    if(!c||!sparky(c)) continue;
+    const votes={};
+    for(const l of outLinks(c)){
+      const tid=byTitle[l.trim().toLowerCase()];
+      if(tid&&nodeById[tid]&&!sparky(byId[tid]||{})) votes[nodeById[tid].cat]=(votes[nodeById[tid].cat]||0)+1;
+    }
+    for(const o of cards){   // 역링크도 근거로 친다
+      if(o.id===c.id||sparky(o)) continue;
+      if(outLinks(o).some(l=>l.trim().toLowerCase()===(c.title||"").trim().toLowerCase()))
+        votes[nodeById[o.id].cat]=(votes[nodeById[o.id].cat]||0)+1;
+    }
+    const top=Object.entries(votes).sort((a,b)=>b[1]-a[1])[0];
+    if(top&&gCatAnchor[top[0]]) n.anchor=gCatAnchor[top[0]];
+  }
+  for(const n of gNodes){
     if(!oldPos[n.id] && n.anchor){   // 새 노드는 제 성운 근처에서 태어난다
       const u=Math.random()*2-1, th2=Math.random()*Math.PI*2, r2=R*0.4*Math.cbrt(Math.random());
       const sq2=Math.sqrt(1-u*u);
@@ -1417,7 +1435,7 @@ function buildGraph(){
   gStars=[];
   for(let i=0;i<420;i++){
     const u=Math.random()*2-1, th=Math.random()*Math.PI*2;
-    const rr=R*(1.4+Math.random()*3.2), sq=Math.sqrt(1-u*u);
+    const rr=R*(2.2+Math.random()*4.8), sq=Math.sqrt(1-u*u);
     gStars.push({x:rr*sq*Math.cos(th), y:rr*sq*Math.sin(th), z:g3d?rr*u:(Math.random()-0.5)*R,
                  tw:Math.random()*6.28, sz:0.5+Math.random()});
   }
@@ -1430,7 +1448,7 @@ function buildGraph(){
 function renderTagLegend(cards){
   const box=document.getElementById("tagLegend"); if(!box) return;
   // 노드 색과 동일한 카테고리 팔레트로 범례 표시
-  const counts={}; for(const c of cards){ const k=nodeCatOf(c); counts[k]=(counts[k]||0)+1; }
+  const counts={}; for(const c of cards){ const k=nodeCatOf(c); if(k==="발상"||k==="개념"||k==="안내") continue; counts[k]=(counts[k]||0)+1; }
   const top=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,9);
   if(!top.length){ box.style.display="none"; return; }
   box.style.display="block";
@@ -1479,8 +1497,8 @@ function stepGraph(){
       const kA=0.0034+0.0026*a.degN;
       a.vx+=(a.anchor.x-a.x)*kA; a.vy+=(a.anchor.y-a.y)*kA; if(g3d) a.vz+=(a.anchor.z-a.z)*kA;
     }
-    // ② 우주 전체가 흩어지지 않을 만큼의 아주 약한 중력만
-    a.vx-=a.x*0.0004; a.vy-=a.y*0.0004; a.vz-=a.z*0.0004;
+    // ② 우주 전체가 흩어지지 않을 만큼의 극히 약한 중력만
+    a.vx-=a.x*0.00015; a.vy-=a.y*0.00015; a.vz-=a.z*0.00015;
   }
   for(const e of gEdges){
     const a=e.na, b=e.nb; if(!a||!b) continue;
