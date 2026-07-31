@@ -1143,14 +1143,21 @@ function buildGraph(){
   const oldPos={}; for(const n of gNodes) oldPos[n.id]={x:n.x,y:n.y,vx:n.vx,vy:n.vy};
   const deg={}; gAdj={};
   const addAdj=(a,b)=>{ (gAdj[a]=gAdj[a]||new Set()).add(b); (gAdj[b]=gAdj[b]||new Set()).add(a); };
-  const edges=[]; const linkPairs=new Set(); const byTitle={};
-  for(const c of cards) byTitle[c.title.trim().toLowerCase()]=c.id;
+  const edges=[]; const linkPairs=new Set(); const byTitle={}; const byId={};
+  for(const c of cards){ byTitle[c.title.trim().toLowerCase()]=c.id; byId[c.id]=c; }
+  // 방향성 수집: 양방향 참조는 최강 연결
+  const dir=new Set();
+  for(const c of cards) for(const l of outLinks(c)){ const t=byTitle[l.trim().toLowerCase()]; if(t&&t!==c.id) dir.add(c.id+">"+t); }
   for(const c of cards){
-    for(const l of outLinks(c)){ const t=byTitle[l.trim().toLowerCase()]; if(t && t!==c.id){ const k=[c.id,t].sort().join("|"); if(!linkPairs.has(k)){ linkPairs.add(k); edges.push({a:c.id,b:t,type:"link"}); deg[c.id]=(deg[c.id]||0)+1; deg[t]=(deg[t]||0)+1; addAdj(c.id,t); } } }
+    for(const l of outLinks(c)){ const t=byTitle[l.trim().toLowerCase()]; if(t && t!==c.id){ const k=[c.id,t].sort().join("|"); if(!linkPairs.has(k)){ linkPairs.add(k);
+      const both=dir.has(c.id+">"+t)&&dir.has(t+">"+c.id);
+      const s=cosine(vectorOf(byId[c.id]), vectorOf(byId[t]));
+      const w=Math.min(1, (both?0.75:0.5) + Math.min(0.5, s*1.4));  // 강도: 양방향+내용유사
+      edges.push({a:c.id,b:t,type:"link",w}); deg[c.id]=(deg[c.id]||0)+1; deg[t]=(deg[t]||0)+1; addAdj(c.id,t); } } }
   }
   for(const c of cards){
     const rel=related(c,4).filter(r=>r.s>0.2 && inSet.has(r.c.id)).slice(0,2);
-    for(const r of rel){ const k=[c.id,r.c.id].sort().join("|"); if(linkPairs.has(k)) continue; if(edges.some(e=>[e.a,e.b].sort().join("|")===k)) continue; edges.push({a:c.id,b:r.c.id,type:"sim"}); deg[c.id]=(deg[c.id]||0)+0.5; deg[r.c.id]=(deg[r.c.id]||0)+0.5; addAdj(c.id,r.c.id); }
+    for(const r of rel){ const k=[c.id,r.c.id].sort().join("|"); if(linkPairs.has(k)) continue; if(edges.some(e=>[e.a,e.b].sort().join("|")===k)) continue; edges.push({a:c.id,b:r.c.id,type:"sim",w:Math.max(0.15,Math.min(0.8,(r.s-0.2)*1.8))}); deg[c.id]=(deg[c.id]||0)+0.5; deg[r.c.id]=(deg[r.c.id]||0)+0.5; addAdj(c.id,r.c.id); }
   }
   gEdges=edges;
   const cx=gW/2, cy=gH/2, R=Math.min(gW,gH)*0.34;
@@ -1220,8 +1227,9 @@ function drawGraph(){
     const a=gNodes.find(n=>n.id===e.a), b=gNodes.find(n=>n.id===e.b); if(!a||!b) continue;
     const rel=gHover && (a===gHover||b===gHover);
     gCtx.beginPath(); gCtx.moveTo(a.x,a.y); gCtx.lineTo(b.x,b.y);
-    if(e.type==="link"){ gCtx.strokeStyle=accent; gCtx.globalAlpha=gHover?(rel?0.85:0.12):0.55; gCtx.lineWidth=1.6; gCtx.setLineDash([]); }
-    else{ gCtx.strokeStyle=sim; gCtx.globalAlpha=gHover?(rel?0.8:0.1):0.5; gCtx.lineWidth=1.1; gCtx.setLineDash([4,4]); }
+    const w=e.w!==undefined?e.w:(e.type==="link"?0.6:0.35);  // 연결 강도 → 굵기·진하기
+    if(e.type==="link"){ gCtx.strokeStyle=accent; gCtx.globalAlpha=(gHover?(rel?1:0.1):0.75)*(0.35+0.65*w); gCtx.lineWidth=0.8+3.2*w; gCtx.setLineDash([]); }
+    else{ gCtx.strokeStyle=sim; gCtx.globalAlpha=(gHover?(rel?0.9:0.08):0.6)*(0.4+0.6*w); gCtx.lineWidth=0.7+2.2*w; gCtx.setLineDash([4,4]); }
     gCtx.stroke();
   }
   gCtx.globalAlpha=1; gCtx.setLineDash([]);
