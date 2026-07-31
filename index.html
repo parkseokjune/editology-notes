@@ -360,7 +360,7 @@
         <canvas id="graphCanvas"></canvas>
         <div class="graph-empty" id="graphEmpty" style="display:none">카드가 2개 이상 쌓이면<br>연결 지도가 그려집니다.</div>
         <div class="taglegend" id="tagLegend" style="display:none"></div>
-        <div class="graph-hint" id="graphHint">드래그=회전 · Shift+드래그=이동 · 휠=확대 · 노드 클릭=열기</div>
+        <div class="graph-hint" id="graphHint">드래그=회전 · 휠=속으로 들어가기 · Shift+드래그=이동 · 노드 클릭=열기</div>
       </div>
     </div>
   </div>
@@ -1292,7 +1292,7 @@ function buildConcept(){
 /* ---------- Graph view (3D 구형 배치 + 원근 투영, 라이브러리 없음) ---------- */
 let graphOn=false, graphRAF=null, gNodes=[], gEdges=[], gDrag=null, gDownPos=null, gHover=null, gPan=null,
     gCanvas=null, gCtx=null, gW=0, gH=0, gDpr=1, gTf={s:1,ox:0,oy:0}, gAdj={}, gTemp=1,
-    gRot={yaw:-0.6, pitch:0.28}, gRotDrag=null, gAuto=true,
+    gRot={yaw:-0.6, pitch:0.28}, gRotDrag=null, gAuto=true, gCamD=null,
     g3d=localStorage.getItem("editology_graph_3d")!=="0";
 function hueOf(str){ let h=0; for(let i=0;i<str.length;i++) h=(h*31+str.charCodeAt(i))%360; return h; }
 /* 카테고리 팔레트 — 보기 좋은 색 순환, 빈도 높은 주제부터 배정 */
@@ -1311,8 +1311,8 @@ function toggle3D(){
   g3d=!g3d; localStorage.setItem("editology_graph_3d", g3d?"1":"0");
   const b=document.getElementById("g3dBtn"); if(b) b.textContent=g3d?"2D":"3D";
   const h=document.getElementById("graphHint");
-  if(h) h.textContent=g3d?"드래그=회전 · Shift+드래그=이동 · 휠=확대 · 노드 클릭=열기":"드래그=이동 · 휠=확대 · 노드 클릭=열기";
-  if(!g3d){ gRot={yaw:0,pitch:0}; for(const n of gNodes){ n.z=0; n.vz=0; } }
+  if(h) h.textContent=g3d?"드래그=회전 · 휠=속으로 들어가기 · Shift+드래그=이동 · 노드 클릭=열기":"드래그=이동 · 휠=확대 · 노드 클릭=열기";
+  if(!g3d){ gRot={yaw:0,pitch:0}; for(const n of gNodes){ n.z=0; n.vz=0; } gCamD=null; gTf={s:1,ox:0,oy:0}; }
   else{ for(const n of gNodes){ n.z=(Math.random()-0.5)*120; } gAuto=true; }
   reheatGraph(0.8); gFitDone=false;
 }
@@ -1416,14 +1416,17 @@ function relayoutGraph(){
   }
   gTf={s:1,ox:0,oy:0}; gAuto=true; gFitDone=false; reheatGraph(1);
 }
-function graphZoom(f){ const cx=gW/2, cy=gH/2; gTf.ox=cx-(cx-gTf.ox)*f; gTf.oy=cy-(cy-gTf.oy)*f; gTf.s*=f; gTf.s=Math.max(0.2,Math.min(4,gTf.s)); }
+function graphZoom(f){
+  if(g3d){ gCamD=Math.max(120, Math.min(60000, (gCamD||Math.min(gW,gH)*2.2+300)/f)); gAuto=false; return; }
+  const cx=gW/2, cy=gH/2; gTf.ox=cx-(cx-gTf.ox)*f; gTf.oy=cy-(cy-gTf.oy)*f; gTf.s*=f; gTf.s=Math.max(0.2,Math.min(4,gTf.s));
+}
 function stepGraph(){
   const n=gNodes.length;
   // 간격을 넉넉히 — 가시성 우선 (3D는 공간이 넓어 더 벌린다)
-  const spread=Math.max(0.9, Math.min(2.6, Math.sqrt((gW*gH)/(Math.max(2,n)*17000))));
-  const rep=(g3d?26000:18000)*spread;
-  const linkRest=(g3d?230:200)*spread, simRest=(g3d?340:290)*spread;
-  const grav=0.0035;
+  const spread=Math.max(0.9, Math.min(3.2, Math.sqrt((gW*gH)/(Math.max(2,n)*12000))));
+  const rep=(g3d?60000:18000)*spread;   // 3D는 사이공간을 크게 — 속을 날아다니며 보는 구조
+  const linkRest=(g3d?380:200)*spread, simRest=(g3d?560:290)*spread;
+  const grav=g3d?0.002:0.0035;
   for(let i=0;i<n;i++){
     const a=gNodes[i];
     for(let j=i+1;j<n;j++){
@@ -1459,16 +1462,21 @@ function stepGraph(){
   gTemp=Math.max(0.03, gTemp*0.988);
   return (kin/(gNodes.length||1))*gTemp*gTemp;   // 평균 실변위² — 정착 감지용
 }
-/* 원근 투영: 회전(yaw·pitch) 후 카메라 투영 → n.px/py/ps/pz */
+/* 원근 투영: 회전(yaw·pitch) 후 카메라 투영 → n.px/py/ps/pz
+   gCamD = 카메라 거리(휠 돌리로 구 속까지 들어감). 카메라 뒤 노드는 컬링. */
+const G_FOCAL=1100;
 function projectAll(){
   const cy=Math.cos(gRot.yaw), sy=Math.sin(gRot.yaw);
   const cp=Math.cos(gRot.pitch), sp=Math.sin(gRot.pitch);
-  const F=1100, D=Math.min(gW,gH)*1.4+300;
+  const F=G_FOCAL, D=gCamD||(Math.min(gW,gH)*2.2+300);
   const ccx=gW/2, ccy=gH/2;
   for(const nd of gNodes){
     const X1=nd.x*cy+nd.z*sy, Z1=-nd.x*sy+nd.z*cy;
     const Y2=nd.y*cp-Z1*sp,  Z2=nd.y*sp+Z1*cp;
-    const sc=F/Math.max(160, D-Z2);   // 카메라에 가까울수록(Z2↑) 크게
+    const dz=D-Z2;                       // 카메라와의 거리
+    nd.cull = g3d && dz<44;              // 지나친 노드는 뒤로 사라짐
+    nd.fade = g3d? Math.max(0, Math.min(1,(dz-44)/220)) : 1;   // 스쳐 지나갈 때 페이드
+    const sc=F/Math.max(44, dz);
     nd.ps=sc; nd.pz=Z2;
     nd.px=(ccx+X1*sc)*gTf.s+gTf.ox;
     nd.py=(ccy+Y2*sc)*gTf.s+gTf.oy;
@@ -1488,12 +1496,12 @@ function drawGraph(){
   const depth=n=> (n.pz-zMin)/zSpan;          // 0=먼쪽, 1=가까운쪽
   const fog=n=> g3d? 0.3+0.7*depth(n) : 1;
   for(const e of gEdges){
-    const a=e.na, b=e.nb; if(!a||!b) continue;
+    const a=e.na, b=e.nb; if(!a||!b||a.cull||b.cull) continue;
     const rel=gHover && (a===gHover||b===gHover);
-    const df=Math.min(fog(a),fog(b));
+    const df=Math.min(fog(a),fog(b))*Math.min(a.fade??1,b.fade??1);
     gCtx.beginPath(); gCtx.moveTo(a.px,a.py); gCtx.lineTo(b.px,b.py);
     const w=e.w!==undefined?e.w:(e.type==="link"?0.6:0.35);  // 연결 강도 → 굵기·진하기
-    const es=((a.ps||1)+(b.ps||1))/2*gTf.s;
+    const es=Math.min(1.9, ((a.ps||1)+(b.ps||1))/2*gTf.s);   // 근접 간선 과대 방지
     if(e.type==="link"){ gCtx.strokeStyle=e.col||"hsl(207,55%,60%)"; gCtx.globalAlpha=(gHover?(rel?1:0.06):0.7)*(0.35+0.65*w)*df; gCtx.lineWidth=(0.8+3.2*w)*es; gCtx.setLineDash([]); }
     else{ gCtx.strokeStyle=muted; gCtx.globalAlpha=(gHover?(rel?0.8:0.04):0.4)*(0.4+0.6*w)*df; gCtx.lineWidth=(0.6+1.6*w)*es; gCtx.setLineDash([4,5]); }
     gCtx.stroke();
@@ -1508,7 +1516,8 @@ function drawGraph(){
     for(const n of cand.slice(0, 46)) labelSet.add(n.id);
   }
   for(const n of order){
-    const r=nodeRadius(n)*gTf.s; const dim=dimmed(n); const f=fog(n);
+    if(n.cull) continue;
+    const r=Math.min(46, nodeRadius(n)*gTf.s); const dim=dimmed(n); const f=fog(n)*(n.fade??1);
     const d=depth(n);
     gCtx.globalAlpha=(dim?0.22:1)*f;
     gCtx.beginPath(); gCtx.arc(n.px,n.py,Math.max(1.5,r),0,Math.PI*2);
@@ -1531,9 +1540,14 @@ function drawGraph(){
 let gSettled=false, gFitDone=false;
 function fitGraph(){
   if(!gNodes.length) return;
-  // 회전 불변: 구 반경 기준으로 화면 맞춤
   let maxR=1;
   for(const n of gNodes){ const r=Math.sqrt(n.x*n.x+n.y*n.y+n.z*n.z); if(r>maxR) maxR=r; }
+  if(g3d){
+    // 카메라 거리로 전체 구가 화면에 들어오게 — 이후 휠로 속까지 진입
+    gCamD=Math.max(400, Math.min(60000, maxR*G_FOCAL/Math.max(120,(Math.min(gW,gH)/2-60))+maxR*0.15));
+    gTf={s:1,ox:0,oy:0};
+    return;
+  }
   projectAll();
   let maxE=1;
   for(const n of gNodes){ const ex=Math.abs((n.px-gTf.ox)/gTf.s-gW/2), ey=Math.abs((n.py-gTf.oy)/gTf.s-gH/2); maxE=Math.max(maxE,ex,ey); }
@@ -1565,6 +1579,7 @@ function bindGraphEvents(){
   const nodeAt=(sx,sy)=>{
     let best=null, bestZ=-1e9;
     for(const n of gNodes){
+      if(n.cull) continue;
       const r=Math.max(6, nodeRadius(n)*gTf.s+4);
       if((n.px-sx)**2+(n.py-sy)**2<=r*r && n.pz>bestZ){ best=n; bestZ=n.pz; }
     }
@@ -1605,7 +1620,14 @@ function bindGraphEvents(){
     if(gDrag){ gDrag._last=null; reheatGraph(0.25); }   // 노드를 옮겼으면 주변만 살짝 재정렬
     gDrag=null; gDownPos=null; gPan=null; gRotDrag=null;
   });
-  gCanvas.addEventListener("wheel",e=>{ e.preventDefault(); const s=screen(e); const f=e.deltaY<0?1.1:0.9;
+  gCanvas.addEventListener("wheel",e=>{ e.preventDefault();
+    if(g3d){   // 휠 = 구 속으로 들어가기/나오기 (카메라 돌리)
+      const f=e.deltaY<0?0.9:1.11;
+      gCamD=Math.max(120, Math.min(60000, (gCamD||Math.min(gW,gH)*2.2+300)*f));
+      gAuto=false;
+      return;
+    }
+    const s=screen(e); const f=e.deltaY<0?1.1:0.9;
     gTf.ox=s.x-(s.x-gTf.ox)*f; gTf.oy=s.y-(s.y-gTf.oy)*f; gTf.s=Math.max(0.2,Math.min(4,gTf.s*f)); },{passive:false});
   window.addEventListener("resize",()=>{ if(graphOn && gCanvas) sizeCanvas(); });
 }
