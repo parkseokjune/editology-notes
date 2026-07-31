@@ -1400,7 +1400,7 @@ function buildGraph(){
     const zz=g3d?(1-2*t):0;
     const rr=Math.sqrt(Math.max(0,1-zz*zz)), th=GA*i;
     let hsh=0; for(let j=0;j<k.length;j++) hsh=(hsh*31+k.charCodeAt(j))>>>0;
-    const AR=R*(2.1+(hsh%1000)/1000*2.2);   // 성운마다 다른 거리 (R*2.1~4.3) — 은하 사이 빈 우주
+    const AR=R*(4.2+(hsh%1000)/1000*4.3);   // 성운마다 다른 거리 (R*4.2~8.5) — 은하 사이 광막한 우주
     gCatAnchor[k]={x:AR*rr*Math.cos(th), y:g3d?AR*zz:AR*rr*Math.sin(th)*0.9, z:g3d?AR*rr*Math.sin(th):0,
                    hue:gCatHue[k], n:catCount[k]||0, name:k};
   });
@@ -1435,12 +1435,12 @@ function buildGraph(){
   gStars=[];
   for(let i=0;i<420;i++){
     const u=Math.random()*2-1, th=Math.random()*Math.PI*2;
-    const rr=R*(2.2+Math.random()*4.8), sq=Math.sqrt(1-u*u);
+    const rr=R*(4.5+Math.random()*8), sq=Math.sqrt(1-u*u);
     gStars.push({x:rr*sq*Math.cos(th), y:rr*sq*Math.sin(th), z:g3d?rr*u:(Math.random()-0.5)*R,
                  tw:Math.random()*6.28, sz:0.5+Math.random()});
   }
   gGaps=[]; window._gGapsDone=false;   // 잠재 시냅스(구조적 공백)는 정착 후 계산
-  gCamD=Math.min(gW,gH)*9; gCamTarget=null;   // 먼 우주에서 시작 → 정착 후 미끄러져 접근
+  gCamD=R*16; gCamTarget=null;   // 먼 우주에서 시작 → 정착 후 미끄러져 접근
   gTemp=1; gSettled=false; gFitDone=false; gAuto=true;   // 재가열 — 식으며 정착
   const b3=document.getElementById("g3dBtn"); if(b3) b3.textContent=g3d?"2D":"3D";
   renderTagLegend(cards);
@@ -1472,7 +1472,7 @@ function relayoutGraph(){
   gTf={s:1,ox:0,oy:0}; gAuto=true; gFitDone=false; reheatGraph(1);
 }
 function graphZoom(f){
-  if(g3d){ gCamTarget=Math.max(90, Math.min(80000, (gCamTarget||gCamD||Math.min(gW,gH)*2.2+300)/f)); gAuto=false; return; }
+  if(g3d){ gCamTarget=Math.max(90, Math.min(120000, (gCamTarget||gCamD||Math.min(gW,gH)*2.2+300)/f)); gAuto=false; return; }
   const cx=gW/2, cy=gH/2; gTf.ox=cx-(cx-gTf.ox)*f; gTf.oy=cy-(cy-gTf.oy)*f; gTf.s*=f; gTf.s=Math.max(0.2,Math.min(4,gTf.s));
 }
 function stepGraph(){
@@ -1498,15 +1498,16 @@ function stepGraph(){
       a.vx+=(a.anchor.x-a.x)*kA; a.vy+=(a.anchor.y-a.y)*kA; if(g3d) a.vz+=(a.anchor.z-a.z)*kA;
     }
     // ② 우주 전체가 흩어지지 않을 만큼의 극히 약한 중력만
-    a.vx-=a.x*0.00015; a.vy-=a.y*0.00015; a.vz-=a.z*0.00015;
+    a.vx-=a.x*0.00006; a.vy-=a.y*0.00006; a.vz-=a.z*0.00006;
   }
   for(const e of gEdges){
     const a=e.na, b=e.nb; if(!a||!b) continue;
     const dx=b.x-a.x, dy=b.y-a.y, dz=b.z-a.z, d=Math.sqrt(dx*dx+dy*dy+dz*dz)||1;
-    const rest=e.type==="link"?linkRest:simRest; const k=e.type==="link"?0.014:0.006;
+    const rest=e.type==="link"?linkRest:simRest; let k=e.type==="link"?0.014:0.006;
+    if(a.cat!==b.cat) k*=0.12;   // 은하 간 다리는 느슨한 밧줄 — 성운을 끌어모으지 않는다
     // 허브(고연결) 노드는 스프링 합력이 폭주해 진동 — 차수로 정규화
     const norm=1/Math.sqrt(Math.max(1,(a.deg+b.deg)*0.5));
-    const f=(d-rest)*k*norm, fx=f*dx/d, fy=f*dy/d, fz=f*dz/d;
+    const f=Math.max(-4,Math.min(4,(d-rest)*k*norm)), fx=f*dx/d, fy=f*dy/d, fz=f*dz/d;
     a.vx+=fx; a.vy+=fy; a.vz+=fz; b.vx-=fx; b.vy-=fy; b.vz-=fz;
   }
   // 냉각: 온도가 내려가며 정착 (드래그·재배치 시 재가열)
@@ -1691,7 +1692,7 @@ function fitGraph(){
   if(g3d){
     // 구가 화면을 살짝 넘치게(몰입) 다가간다 — 이후 휠로 속까지 진입
     const fitD=maxR*G_FOCAL/Math.max(120,(Math.min(gW,gH)/2-60))+maxR*0.15;
-    gCamTarget=Math.max(400, Math.min(80000, fitD*0.5));
+    gCamTarget=Math.max(400, Math.min(120000, fitD*0.74));
     gTf={s:1,ox:0,oy:0};
     return;
   }
@@ -1778,7 +1779,7 @@ function bindGraphEvents(){
   gCanvas.addEventListener("wheel",e=>{ e.preventDefault();
     if(g3d){   // 휠 = 구 속으로 들어가기/나오기 (관성 돌리)
       const f=e.deltaY<0?0.82:1.22;
-      gCamTarget=Math.max(90, Math.min(80000, (gCamTarget||gCamD||Math.min(gW,gH)*2.2+300)*f));
+      gCamTarget=Math.max(90, Math.min(120000, (gCamTarget||gCamD||Math.min(gW,gH)*2.2+300)*f));
       gAuto=false;
       return;
     }
