@@ -1391,7 +1391,7 @@ function buildGraph(){
     let hsh=0; const key=e.a+e.b; for(let i=0;i<key.length;i++) hsh=(hsh*31+key.charCodeAt(i))|0;
     e.curve=((hsh%100)/100-0.5)*0.5;
   }
-  // 위치 = 의미: 주제 앵커를 구면에 고르게(피보나치) 배치 → 주제별 성운
+  // 위치 = 의미: 주제마다 독립된 성운 — 방향은 피보나치, 거리는 제각각(여러 은하의 우주)
   const catList=Object.keys(gCatHue);
   gCatAnchor={};
   const GA=Math.PI*(3-Math.sqrt(5));
@@ -1399,16 +1399,25 @@ function buildGraph(){
     const t=catList.length>1? i/(catList.length-1) : 0.5;
     const zz=g3d?(1-2*t):0;
     const rr=Math.sqrt(Math.max(0,1-zz*zz)), th=GA*i;
-    const AR=R*0.85;
+    let hsh=0; for(let j=0;j<k.length;j++) hsh=(hsh*31+k.charCodeAt(j))>>>0;
+    const AR=R*(1.3+(hsh%1000)/1000*1.3);   // 성운마다 다른 거리 (R*1.3~2.6)
     gCatAnchor[k]={x:AR*rr*Math.cos(th), y:g3d?AR*zz:AR*rr*Math.sin(th)*0.9, z:g3d?AR*rr*Math.sin(th):0,
                    hue:gCatHue[k], n:catCount[k]||0, name:k};
   });
-  for(const n of gNodes){ n.anchor=gCatAnchor[n.cat]; n.degN=Math.min(1, n.deg/8); }
+  for(const n of gNodes){
+    n.anchor=gCatAnchor[n.cat]; n.degN=Math.min(1, n.deg/8);
+    if(!oldPos[n.id] && n.anchor){   // 새 노드는 제 성운 근처에서 태어난다
+      const u=Math.random()*2-1, th2=Math.random()*Math.PI*2, r2=R*0.4*Math.cbrt(Math.random());
+      const sq2=Math.sqrt(1-u*u);
+      n.x=n.anchor.x+r2*sq2*Math.cos(th2); n.y=n.anchor.y+r2*sq2*Math.sin(th2);
+      n.z=g3d? n.anchor.z+r2*u : 0;
+    }
+  }
   // 별밭 — 패럴랙스 배경 (진입감의 기준점)
   gStars=[];
   for(let i=0;i<420;i++){
     const u=Math.random()*2-1, th=Math.random()*Math.PI*2;
-    const rr=R*(1.15+Math.random()*2.1), sq=Math.sqrt(1-u*u);
+    const rr=R*(1.4+Math.random()*3.2), sq=Math.sqrt(1-u*u);
     gStars.push({x:rr*sq*Math.cos(th), y:rr*sq*Math.sin(th), z:g3d?rr*u:(Math.random()-0.5)*R,
                  tw:Math.random()*6.28, sz:0.5+Math.random()});
   }
@@ -1465,11 +1474,13 @@ function stepGraph(){
       const fx=f*dx/d, fy=f*dy/d, fz=f*dz/d;
       a.vx+=fx; a.vy+=fy; a.vz+=fz; b.vx-=fx; b.vy-=fy; b.vz-=fz;
     }
-    // 위치=의미: ① 같은 주제는 주제 앵커(성운 중심)로 끌린다
-    if(a.anchor){ a.vx+=(a.anchor.x-a.x)*0.0028; a.vy+=(a.anchor.y-a.y)*0.0028; if(g3d) a.vz+=(a.anchor.z-a.z)*0.0028; }
-    // ② 연결 많은 허브일수록 중심핵으로 — 뇌의 심부 구조
-    const coreG=0.0006+0.0024*a.degN;
-    a.vx-=a.x*coreG; a.vy-=a.y*coreG; a.vz-=a.z*coreG;
+    // 위치=의미: ① 같은 주제는 제 성운(앵커)으로 — 허브일수록 성운 심부로
+    if(a.anchor){
+      const kA=0.0034+0.0026*a.degN;
+      a.vx+=(a.anchor.x-a.x)*kA; a.vy+=(a.anchor.y-a.y)*kA; if(g3d) a.vz+=(a.anchor.z-a.z)*kA;
+    }
+    // ② 우주 전체가 흩어지지 않을 만큼의 아주 약한 중력만
+    a.vx-=a.x*0.0004; a.vy-=a.y*0.0004; a.vz-=a.z*0.0004;
   }
   for(const e of gEdges){
     const a=e.na, b=e.nb; if(!a||!b) continue;
@@ -1550,7 +1561,7 @@ function drawGraph(){
     if(A.n<5||A.cull) continue;
     const fs=Math.max(12, Math.min(26, 13+A.n*0.28))*Math.min(1.4,(A.ps||1)*1.9);
     gCtx.font="700 "+fs+"px -apple-system,sans-serif";
-    gCtx.fillStyle="hsla("+A.hue+",75%,72%,"+(0.13*(A.fade??1))+")";
+    gCtx.fillStyle="hsla("+A.hue+",75%,72%,"+(0.20*(A.fade??1))+")";
     gCtx.fillText(A.name, A.px, A.py);
   }
   // 간선: 곡선 발광 섬유 (뉴런) — 점선 없음
@@ -1598,22 +1609,44 @@ function drawGraph(){
     const cand=order.slice().sort((a,b)=>(depth(b)+Math.min(1,b.deg/6))-(depth(a)+Math.min(1,a.deg/6)));
     for(const n of cand.slice(0, 34)) labelSet.add(n.id);
   }
+  for(const n of order) if(isSpark(n)) labelSet.add(n.id);   // 발상 라벨은 항상
   for(const n of order){
     if(n.cull) continue;
     const spark=isSpark(n);
-    const r=Math.min(40, Math.max(2.2, nodeRadius(n)*gTf.s));
+    let r=Math.min(40, Math.max(2.2, nodeRadius(n)*gTf.s));
     const dim=dimmed(n); const f=fog(n)*(n.fade??1);
-    const hue=spark?46:n.hue, sat=spark?95:80, li=spark?66:60;
-    const pu=spark? 1+0.22*Math.sin(t*3+(n.tw||n.px)) : 1;
-    gCtx.globalAlpha=(dim?0.15:1)*f*0.16;                      // halo
-    gCtx.fillStyle="hsl("+hue+","+sat+"%,"+li+"%)";
-    gCtx.beginPath(); gCtx.arc(n.px,n.py,r*2.4*pu,0,Math.PI*2); gCtx.fill();
-    if(spark){ gCtx.globalAlpha=(dim?0.1:1)*f*0.12; gCtx.beginPath(); gCtx.arc(n.px,n.py,r*4*pu,0,Math.PI*2); gCtx.fill(); }
-    gCtx.globalAlpha=(dim?0.22:1)*f*0.85;                      // 본체
-    gCtx.beginPath(); gCtx.arc(n.px,n.py,r,0,Math.PI*2); gCtx.fill();
-    gCtx.globalAlpha=(dim?0.25:1)*f*0.9;                       // 코어
-    gCtx.fillStyle="hsl("+hue+",40%,88%)";
-    gCtx.beginPath(); gCtx.arc(n.px,n.py,Math.max(0.8,r*0.34),0,Math.PI*2); gCtx.fill();
+    if(spark){
+      // 발상 = 별처럼 빛난다: 크고, 강한 금빛 광휘, 맥동, 십자 플레어
+      r=Math.min(46, r*1.35+2);
+      const pu=1+0.22*Math.sin(t*3+(n.tw||n.px));
+      gCtx.fillStyle="hsl(46,96%,64%)";
+      gCtx.globalAlpha=(dim?0.3:1)*f*0.13;
+      gCtx.beginPath(); gCtx.arc(n.px,n.py,r*4.6*pu,0,Math.PI*2); gCtx.fill();
+      gCtx.globalAlpha=(dim?0.35:1)*f*0.30;
+      gCtx.beginPath(); gCtx.arc(n.px,n.py,r*2.3*pu,0,Math.PI*2); gCtx.fill();
+      gCtx.strokeStyle="hsla(48,95%,75%,"+((dim?0.3:1)*f*0.5)+")";   // 플레어
+      gCtx.lineWidth=1;
+      const fl=r*3.4*pu;
+      gCtx.beginPath();
+      gCtx.moveTo(n.px-fl,n.py); gCtx.lineTo(n.px+fl,n.py);
+      gCtx.moveTo(n.px,n.py-fl); gCtx.lineTo(n.px,n.py+fl);
+      gCtx.stroke();
+      gCtx.globalAlpha=(dim?0.4:1)*f*0.95;                     // 본체
+      gCtx.beginPath(); gCtx.arc(n.px,n.py,r,0,Math.PI*2); gCtx.fill();
+      gCtx.globalAlpha=(dim?0.45:1)*f;                         // 코어
+      gCtx.fillStyle="hsl(50,100%,93%)";
+      gCtx.beginPath(); gCtx.arc(n.px,n.py,Math.max(1,r*0.4),0,Math.PI*2); gCtx.fill();
+    } else {
+      // 일반 기록은 차분하게 — 발상이 도드라지도록
+      gCtx.globalAlpha=(dim?0.12:1)*f*0.09;                    // halo
+      gCtx.fillStyle="hsl("+n.hue+",62%,52%)";
+      gCtx.beginPath(); gCtx.arc(n.px,n.py,r*2.1,0,Math.PI*2); gCtx.fill();
+      gCtx.globalAlpha=(dim?0.18:1)*f*0.55;                    // 본체
+      gCtx.beginPath(); gCtx.arc(n.px,n.py,r,0,Math.PI*2); gCtx.fill();
+      gCtx.globalAlpha=(dim?0.2:1)*f*0.6;                      // 코어
+      gCtx.fillStyle="hsl("+n.hue+",35%,82%)";
+      gCtx.beginPath(); gCtx.arc(n.px,n.py,Math.max(0.8,r*0.32),0,Math.PI*2); gCtx.fill();
+    }
     if(n.orphan){ gCtx.globalAlpha=0.5*f; gCtx.strokeStyle="#7d8ba0"; gCtx.lineWidth=1; gCtx.setLineDash([2,3]); gCtx.beginPath(); gCtx.arc(n.px,n.py,r+3,0,Math.PI*2); gCtx.stroke(); gCtx.setLineDash([]); }
   }
   // 라벨 (일반 합성 — 흰빛 글자)
@@ -1625,8 +1658,9 @@ function drawGraph(){
     const r=Math.min(40, Math.max(1.6, nodeRadius(n)*gTf.s));
     const label=n.title.length>14?n.title.slice(0,14)+"…":n.title;
     const fs=Math.max(9, 11.5*Math.min(1.2,(n.ps||1))*Math.min(1.3,gTf.s));
-    gCtx.font=(n.deg>=2?"600 ":"")+fs+"px -apple-system,sans-serif";
-    gCtx.fillStyle="#d9e6f7"; gCtx.globalAlpha=(dim?0.18:0.85)*f;
+    const sp=isSpark(n);
+    gCtx.font=(sp?"700 ":n.deg>=2?"600 ":"")+fs+"px -apple-system,sans-serif";
+    gCtx.fillStyle=sp?"#ffe6a3":"#c3d2e6"; gCtx.globalAlpha=(dim?0.18:sp?0.95:0.72)*f;
     gCtx.fillText(label,n.px,n.py+r+3);
   }
   gCtx.globalAlpha=1;
